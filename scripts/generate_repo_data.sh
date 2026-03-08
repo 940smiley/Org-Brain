@@ -142,7 +142,7 @@ log_info "Fetching repositories for organization: $ORG_NAME"
 export GH_TOKEN
 
 # Fetch all repositories with pagination
-repos_json=$(gh api "/orgs/$ORG_NAME/repos?per_page=100&type=all" --paginate)
+repos_json=$(gh api "/users/$ORG_NAME/repos?per_page=100&type=all" --paginate)
 
 if [ "$INCLUDE_ARCHIVED" = false ]; then
     log_info "Filtering out archived repositories"

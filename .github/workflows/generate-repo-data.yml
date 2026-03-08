@@ -93,7 +93,7 @@ jobs:
           echo "🔍 Fetching repositories for organization: $ORG_NAME"
           
           # Fetch all repositories with detailed information
-          repos_json=$(gh api "/orgs/$ORG_NAME/repos?per_page=100&type=all" --paginate)
+          repos_json=$(gh api "/users/$ORG_NAME/repos?per_page=100&type=all" --paginate)
           
           # Filter archived if needed
           if [ "$INCLUDE_ARCHIVED" = "false" ]; then
