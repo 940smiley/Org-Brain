@@ -84,7 +84,7 @@ jobs:
       - name: Find all Dependabot PRs
         id: find-prs
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
         run: |
           echo "🔍 Searching for Dependabot PRs in $ORG_NAME"
           
@@ -243,7 +243,7 @@ jobs:
     steps:
       - name: Process Security PR
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
           PR_NUMBER: ${{ matrix.pr.number }}
           REPO: ${{ matrix.pr.repo }}
         run: |
@@ -312,7 +312,7 @@ jobs:
     steps:
       - name: Process Patch PR
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
           PR_NUMBER: ${{ matrix.pr.number }}
           REPO: ${{ matrix.pr.repo }}
         run: |
@@ -373,7 +373,7 @@ jobs:
     steps:
       - name: Process Minor PR
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
           PR_NUMBER: ${{ matrix.pr.number }}
           REPO: ${{ matrix.pr.repo }}
         run: |
@@ -428,7 +428,7 @@ jobs:
     steps:
       - name: Label Major Update for Review
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
           PR_NUMBER: ${{ matrix.pr.number }}
           REPO: ${{ matrix.pr.repo }}
         run: |

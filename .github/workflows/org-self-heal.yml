@@ -120,7 +120,7 @@ jobs:
       - name: Get repositories to process
         id: get-repos
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
         run: |
           if [ -n "$SPECIFIC_REPOS" ]; then
             # Use specific repos from input
@@ -208,7 +208,7 @@ jobs:
       - name: Clone and Maintain Repository
         id: maintain
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
           REPO_NAME: ${{ matrix.repo }}
         run: |
           #!/bin/bash

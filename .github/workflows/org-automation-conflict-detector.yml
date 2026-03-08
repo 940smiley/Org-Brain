@@ -86,7 +86,7 @@ jobs:
       - name: Detect Automation Conflict
         id: detect-conflict
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.inputs.pr_number || github.event.pull_request.number }}
         run: |
@@ -206,7 +206,7 @@ jobs:
       - name: Apply Conflict Labels and Comment
         if: ${{ steps.detect-conflict.outputs.has_conflict == 'true' }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.inputs.pr_number || github.event.pull_request.number }}
         run: |
@@ -262,7 +262,7 @@ jobs:
       - name: Scan All Open PRs for Conflicts
         id: scan
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
         run: |
           #!/bin/bash
           
@@ -378,7 +378,7 @@ jobs:
     steps:
       - name: Apply Conflict Resolution
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
           CONFLICT_PR: ${{ matrix.conflict_pr }}
         run: |
           #!/bin/bash

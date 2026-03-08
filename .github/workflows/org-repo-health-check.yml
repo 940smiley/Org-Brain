@@ -84,7 +84,7 @@ jobs:
       - name: Get all organization repositories
         id: get-repos
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
         run: |
           echo "🔍 Discovering repositories in organization: $ORG_NAME"
           
@@ -130,7 +130,7 @@ jobs:
       - name: Collect Repository Metrics
         id: collect
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
           REPO_NAME: ${{ matrix.repo }}
         run: |
           #!/bin/bash
