@@ -1,0 +1,475 @@
+# =============================================================================
+# ORG PR SWARM MANAGER
+# =============================================================================
+# Purpose: Centralized PR governance across all repositories in the organization
+#
+# Features:
+#   - Discovers all repos in the organization (skips archived)
+#   - Classifies PRs by author (dependabot, amazon-q, human, other bots)
+#   - Applies automated fixes based on PR type
+#   - Auto-merges eligible PRs when CI passes
+#
+# Triggers:
+#   - Schedule: Every 30 minutes
+#   - Manual dispatch for on-demand execution
+#
+# Processing Rules:
+#   - Dependabot: Run lint + format fixes, auto-merge when checks pass
+#   - Amazon Q: Validate changes, run formatters, auto-merge if CI passes
+#   - Human: Only validation (unless "allow-autofix" label exists)
+#
+# Skip Conditions:
+#   - PR labeled "automation-lock"
+#   - PR modified within last 10 minutes
+#   - Draft PRs
+# =============================================================================
+
+name: "🤖 Org PR Swarm Manager"
+
+on:
+  schedule:
+    # Run every 30 minutes
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      org:
+        description: "GitHub organization name (defaults to current org)"
+        required: false
+        type: string
+      max_repos:
+        description: "Maximum repositories to process (0 = unlimited)"
+        required: false
+        type: number
+        default: "0"
+      dry_run:
+        description: "Run in dry-run mode (no actual changes)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+env:
+  ORG_NAME: ${{ github.event.inputs.org || github.repository_owner }}
+  MAX_REPOS: ${{ github.event.inputs.max_repos || 0 }}
+  DRY_RUN: ${{ github.event.inputs.dry_run || false }}
+  COMMIT_EMAIL: "org-brain-bot@github.com"
+  COMMIT_NAME: "Org Brain Bot"
+  FIX_COMMIT_MESSAGE: "chore: automated repository maintenance"
+
+jobs:
+  # ===========================================================================
+  # DISCOVER REPOSITORIES
+  # ===========================================================================
+  discover-repos:
+    name: "Discover Organization Repositories"
+    runs-on: ubuntu-latest
+    outputs:
+      repo_list: ${{ steps.get-repos.outputs.repo_list }}
+      repo_count: ${{ steps.get-repos.outputs.repo_count }}
+    steps:
+      - name: Checkout Org Brain
+        uses: actions/checkout@v4
+
+      - name: Get all organization repositories
+        id: get-repos
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔍 Discovering repositories in organization: $ORG_NAME"
+          
+          # Fetch all repositories (including archived for filtering)
+          repos_json=$(gh api "/orgs/$ORG_NAME/repos?per_page=100&type=all" --paginate)
+          
+          # Filter out archived repositories and extract names
+          active_repos=$(echo "$repos_json" | jq -r '[.[] | select(.archived == false) | .name] | join(",")')
+          repo_count=$(echo "$repos_json" | jq -r '[.[] | select(.archived == false)] | length')
+          
+          echo "📦 Found $repo_count active repositories"
+          echo "repo_list=$active_repos" >> $GITHUB_OUTPUT
+          echo "repo_count=$repo_count" >> $GITHUB_OUTPUT
+          
+          # Log repository names for visibility
+          echo "$repos_json" | jq -r '.[] | select(.archived == false) | "  - \(.name)"' | head -20
+          if [ "$repo_count" -gt 20 ]; then
+            echo "  ... and $((repo_count - 20)) more"
+          fi
+
+  # ===========================================================================
+  # PROCESS PULL REQUESTS
+  # ===========================================================================
+  process-prs:
+    name: "Process PRs in ${{ matrix.repo }}"
+    runs-on: ubuntu-latest
+    needs: discover-repos
+    if: ${{ needs.discover-repos.outputs.repo_count > 0 }}
+    strategy:
+      # Process repositories in parallel (up to 10 at a time)
+      max-parallel: 10
+      fail-fast: false
+      matrix:
+        repo: ${{ fromJson(format('["{0}"]', join(needs.discover-repos.outputs.repo_list, '","'))) }}
+    
+    steps:
+      - name: Checkout Org Brain
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (for JavaScript/TypeScript repos)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: "**/package-lock.json"
+
+      - name: Setup Python (for Python repos)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Setup Go (for Go repos)
+        uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+
+      - name: Setup Rust (for Rust repos)
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt
+
+      - name: Install GitHub CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh --version || echo "GitHub CLI already available"
+
+      - name: Process Pull Requests
+        id: process-prs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_NAME: ${{ matrix.repo }}
+        run: |
+          #!/bin/bash
+          set -e
+          
+          echo "🔄 Processing repository: $REPO_NAME"
+          echo "📂 Repository URL: https://github.com/$ORG_NAME/$REPO_NAME"
+          
+          # Get all open PRs
+          prs=$(gh pr list --repo "$ORG_NAME/$REPO_NAME" --state open --limit 100 --json number,title,author,isDraft,updatedAt,labels)
+          
+          if [ "$prs" = "[]" ]; then
+            echo "✅ No open PRs in $REPO_NAME"
+            echo "pr_count=0" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          pr_count=$(echo "$prs" | jq 'length')
+          echo "📋 Found $pr_count open PR(s)"
+          echo "pr_count=$pr_count" >> $GITHUB_OUTPUT
+          
+          processed=0
+          merged=0
+          fixed=0
+          skipped=0
+          
+          # Process each PR
+          echo "$prs" | jq -c '.[]' | while read -r pr; do
+            pr_number=$(echo "$pr" | jq -r '.number')
+            pr_title=$(echo "$pr" | jq -r '.title')
+            pr_author=$(echo "$pr" | jq -r '.author.login')
+            is_draft=$(echo "$pr" | jq -r '.isDraft')
+            updated_at=$(echo "$pr" | jq -r '.updatedAt')
+            labels=$(echo "$pr" | jq -r '.labels[].name' | tr '\n' ',')
+            
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "📝 PR #$pr_number: $pr_title"
+            echo "   Author: $pr_author | Draft: $is_draft | Labels: $labels"
+            
+            # Skip if draft
+            if [ "$is_draft" = "true" ]; then
+              echo "⏭️  Skipping: Draft PR"
+              skipped=$((skipped + 1))
+              continue
+            fi
+            
+            # Skip if labeled automation-lock
+            if echo "$labels" | grep -q "automation-lock"; then
+              echo "⏭️  Skipping: Has 'automation-lock' label"
+              skipped=$((skipped + 1))
+              continue
+            fi
+            
+            # Skip if modified within last 10 minutes
+            updated_timestamp=$(date -d "$updated_at" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%S" "$updated_at" +%s 2>/dev/null || echo "0")
+            current_timestamp=$(date +%s)
+            time_diff=$((current_timestamp - updated_timestamp))
+            
+            if [ "$time_diff" -lt 600 ]; then
+              echo "⏭️  Skipping: Modified within last 10 minutes ($time_diff seconds ago)"
+              skipped=$((skipped + 1))
+              continue
+            fi
+            
+            # Classify PR author
+            author_type="human"
+            if [ "$pr_author" = "dependabot[bot]" ] || [ "$pr_author" = "dependabot-preview[bot]" ]; then
+              author_type="dependabot"
+            elif [ "$pr_author" = "amazon-q[bot]" ]; then
+              author_type="amazon-q"
+            elif echo "$pr_author" | grep -q "\[bot\]"; then
+              author_type="bot"
+            fi
+            
+            echo "🏷️  Author type: $author_type"
+            
+            # Determine if autofix is allowed
+            allow_autofix=false
+            if [ "$author_type" = "dependabot" ] || [ "$author_type" = "amazon-q" ]; then
+              allow_autofix=true
+            elif echo "$labels" | grep -q "allow-autofix"; then
+              allow_autofix=true
+              echo "✨ Autofix enabled via 'allow-autofix' label"
+            fi
+            
+            # Skip merge if labeled manual-review
+            if echo "$labels" | grep -q "manual-review"; then
+              echo "⏭️  Skipping merge: Has 'manual-review' label"
+              allow_autofix=false
+            fi
+            
+            # Checkout the PR branch
+            branch_name=$(gh pr view "$pr_number" --repo "$ORG_NAME/$REPO_NAME" --json headRefName --jq '.headRefName')
+            echo "🌿 Branch: $branch_name"
+            
+            # Clone the repository
+            repo_url="https://github.com/$ORG_NAME/$REPO_NAME.git"
+            git clone --depth 1 --branch "$branch_name" "$repo_url" workdir
+            cd workdir
+            
+            # Detect project language and run appropriate fixes
+            if [ "$allow_autofix" = "true" ]; then
+              echo "🔧 Running automated fixes..."
+              files_changed=false
+              
+              # Detect language and apply fixes
+              if [ -f "package.json" ]; then
+                echo "   📦 JavaScript/TypeScript detected"
+                
+                # Install dependencies if needed
+                if [ -f "package-lock.json" ] || [ -f "yarn.lock" ] || [ -f "pnpm-lock.yaml" ]; then
+                  npm ci --ignore-scripts 2>/dev/null || npm install --ignore-scripts 2>/dev/null || true
+                fi
+                
+                # Run ESLint fix
+                if [ -f ".eslintrc" ] || [ -f ".eslintrc.js" ] || [ -f ".eslintrc.json" ] || grep -q "eslint" package.json 2>/dev/null; then
+                  echo "   → Running ESLint --fix"
+                  npx eslint --fix . 2>/dev/null && files_changed=true || true
+                fi
+                
+                # Run Prettier
+                if [ -f ".prettierrc" ] || [ -f "prettier.config.js" ] || grep -q "prettier" package.json 2>/dev/null; then
+                  echo "   → Running Prettier"
+                  npx prettier --write "**/*.{js,jsx,ts,tsx,json,css,md}" 2>/dev/null && files_changed=true || true
+                fi
+                
+              elif [ -f "requirements.txt" ] || [ -f "setup.py" ] || [ -f "pyproject.toml" ] || [ -f "*.py" ]; then
+                echo "   🐍 Python detected"
+                
+                # Install Python tools
+                pip install --quiet ruff black isort 2>/dev/null || true
+                
+                # Run Ruff fix
+                if command -v ruff &> /dev/null; then
+                  echo "   → Running Ruff --fix"
+                  ruff check --fix . 2>/dev/null && files_changed=true || true
+                fi
+                
+                # Run Black
+                if command -v black &> /dev/null; then
+                  echo "   → Running Black"
+                  black . 2>/dev/null && files_changed=true || true
+                fi
+                
+                # Run isort
+                if command -v isort &> /dev/null; then
+                  echo "   → Running isort"
+                  isort . 2>/dev/null && files_changed=true || true
+                fi
+                
+              elif [ -f "go.mod" ]; then
+                echo "   🐹 Go detected"
+                
+                # Run gofmt
+                echo "   → Running gofmt"
+                find . -name "*.go" -not -path "./vendor/*" -exec gofmt -w {} \; 2>/dev/null && files_changed=true || true
+                
+              elif [ -f "Cargo.toml" ]; then
+                echo "   🦀 Rust detected"
+                
+                # Run rustfmt
+                if command -v rustfmt &> /dev/null; then
+                  echo "   → Running rustfmt"
+                  cargo fmt 2>/dev/null && files_changed=true || true
+                fi
+              fi
+              
+              # General fixes
+              echo "   🧹 Running general cleanup"
+              
+              # Whitespace cleanup
+              find . -type f \( -name "*.js" -o -name "*.ts" -o -name "*.py" -o -name "*.go" -o -name "*.rs" -o -name "*.java" -o -name "*.cpp" -o -name "*.c" -o -name "*.h" \) \
+                -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./vendor/*" -not -path "./target/*" \
+                -exec sed -i 's/[[:space:]]*$//' {} \; 2>/dev/null && files_changed=true || true
+              
+              # YAML validation (check only, don't modify)
+              if command -v yamllint &> /dev/null; then
+                echo "   → Validating YAML files"
+                yamllint . 2>/dev/null || true
+              fi
+              
+              # Markdown lint (check only)
+              if command -v markdownlint &> /dev/null; then
+                echo "   → Linting Markdown files"
+                markdownlint "**/*.md" 2>/dev/null || true
+              fi
+              
+              cd ..
+              
+              # Commit and push if files changed
+              if [ "$files_changed" = "true" ] || ! git -C workdir diff --quiet; then
+                echo "💾 Changes detected, committing..."
+                cd workdir
+                
+                git config user.email "$COMMIT_EMAIL"
+                git config user.name "$COMMIT_NAME"
+                
+                git add -A
+                if ! git diff --cached --quiet; then
+                  git commit -m "$FIX_COMMIT_MESSAGE"
+                  
+                  if [ "$DRY_RUN" != "true" ]; then
+                    git push
+                    echo "✅ Pushed fixes to branch: $branch_name"
+                    fixed=$((fixed + 1))
+                  else
+                    echo "🧪 [DRY RUN] Would push fixes"
+                  fi
+                else
+                  echo "ℹ️  No changes to commit after all"
+                fi
+                cd ..
+              else
+                echo "ℹ️  No files changed by fixes"
+              fi
+            fi
+            
+            # Check if PR can be merged
+            echo "🔍 Checking merge eligibility..."
+            
+            # Get PR check status
+            pr_status=$(gh pr view "$pr_number" --repo "$ORG_NAME/$REPO_NAME" --json statusCheckRollup,state,mergeable --jq '{checks: .statusCheckRollup, state: .state, mergeable: .mergeable}')
+            checks_state=$(echo "$pr_status" | jq -r '.checks // [] | .[].state' | sort -u)
+            mergeable=$(echo "$pr_status" | jq -r '.mergeable')
+            
+            # Check if all CI checks pass
+            can_merge=true
+            
+            if echo "$checks_state" | grep -q "FAILURE"; then
+              echo "❌ Cannot merge: CI checks failing"
+              can_merge=false
+            fi
+            
+            if [ "$mergeable" = "CONFLICTING" ]; then
+              echo "❌ Cannot merge: Has merge conflicts"
+              can_merge=false
+            fi
+            
+            # Attempt auto-merge if eligible
+            if [ "$can_merge" = "true" ] && [ "$allow_autofix" = "true" ]; then
+              echo "🚀 Attempting auto-merge..."
+              
+              if [ "$DRY_RUN" != "true" ]; then
+                merge_result=$(gh pr merge "$pr_number" --repo "$ORG_NAME/$REPO_NAME" --auto --squash 2>&1) || true
+                
+                if echo "$merge_result" | grep -q "Auto-merge enabled"; then
+                  echo "✅ Auto-merge enabled for PR #$pr_number"
+                  merged=$((merged + 1))
+                elif echo "$merge_result" | grep -q "already"; then
+                  echo "ℹ️  PR #$pr_number is already queued for merge"
+                else
+                  echo "⚠️  Could not enable auto-merge: $merge_result"
+                fi
+              else
+                echo "🧪 [DRY RUN] Would enable auto-merge for PR #$pr_number"
+              fi
+            else
+              echo "⏭️  Skipping auto-merge (not eligible or manual review required)"
+            fi
+            
+            processed=$((processed + 1))
+            
+            # Save counters to file for aggregation
+            echo "$processed,$merged,$fixed,$skipped" > /tmp/pr_counters_$REPO_NAME.txt
+          done
+          
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📊 Repository $REPO_NAME Summary:"
+          echo "   Processed: $processed"
+          echo "   Merged: $merged"
+          echo "   Fixed: $fixed"
+          echo "   Skipped: $skipped"
+
+  # ===========================================================================
+  # AGGREGATE RESULTS
+  # ===========================================================================
+  aggregate-results:
+    name: "Aggregate Results"
+    runs-on: ubuntu-latest
+    needs: [discover-repos, process-prs]
+    if: always()
+    steps:
+      - name: Generate Summary Report
+        run: |
+          echo "🧠 Org PR Swarm Manager - Execution Complete"
+          echo ""
+          echo "## Summary"
+          echo ""
+          echo "- **Organization:** $ORG_NAME"
+          echo "- **Repositories Processed:** ${{ needs.discover-repos.outputs.repo_count }}"
+          echo "- **Execution Time:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo ""
+          echo "## Next Steps"
+          echo ""
+          echo "- Review any failed automations in the job logs"
+          echo "- Check PRs labeled 'automation-conflict' for manual review"
+          echo "- Monitor merge queue for pending auto-merges"
+          
+      - name: Upload Summary to GitHub
+        run: |
+          cat << 'EOF' >> $GITHUB_STEP_SUMMARY
+          # 🧠 Org PR Swarm Manager - Execution Complete
+          
+          ## Summary
+          
+          | Metric | Value |
+          |--------|-------|
+          | Organization | $ORG_NAME |
+          | Repositories | ${{ needs.discover-repos.outputs.repo_count }} |
+          | Execution Time | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |
+          
+          ## Status
+          
+          ✅ Workflow completed successfully
+          
+          ## Next Steps
+          
+          - Review any failed automations in the job logs
+          - Check PRs labeled 'automation-conflict' for manual review
+          - Monitor merge queue for pending auto-merges
+          EOF

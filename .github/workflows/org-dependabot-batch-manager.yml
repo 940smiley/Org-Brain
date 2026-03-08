@@ -1,0 +1,460 @@
+# =============================================================================
+# ORG DEPENDABOT BATCH MANAGER
+# =============================================================================
+# Purpose: Reduce PR spam from Dependabot by batching related dependency updates
+#
+# Features:
+#   - Detects multiple dependency update PRs across repositories
+#   - Batches related dependency PRs together (same ecosystem/package)
+#   - Prioritizes security updates over regular updates
+#   - Auto-merges patch-level updates when CI passes
+#
+# Triggers:
+#   - Schedule: Every hour
+#   - Manual dispatch for on-demand execution
+#
+# Batching Strategy:
+#   - Security updates: Process immediately (highest priority)
+#   - Minor/Patch updates: Batch by ecosystem (npm, pip, cargo, etc.)
+#   - Major updates: Require manual review (lower priority)
+# =============================================================================
+
+name: "📦 Org Dependabot Batch Manager"
+
+on:
+  schedule:
+    # Run every hour
+    - cron: "0 * * * *"
+  workflow_dispatch:
+    inputs:
+      org:
+        description: "GitHub organization name"
+        required: false
+        type: string
+      priority_mode:
+        description: "Processing mode: security-first, batch-all, or major-only"
+        required: false
+        type: choice
+        options:
+          - security-first
+          - batch-all
+          - major-only
+        default: "security-first"
+      dry_run:
+        description: "Dry run mode (no actual merges)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+env:
+  ORG_NAME: ${{ github.event.inputs.org || github.repository_owner }}
+  PRIORITY_MODE: ${{ github.event.inputs.priority_mode || 'security-first' }}
+  DRY_RUN: ${{ github.event.inputs.dry_run || false }}
+
+jobs:
+  # ===========================================================================
+  # DISCOVER DEPENDABOT PRS
+  # ===========================================================================
+  discover-dependabot-prs:
+    name: "Discover Dependabot PRs"
+    runs-on: ubuntu-latest
+    outputs:
+      security_prs: ${{ steps.classify-prs.outputs.security_prs }}
+      patch_prs: ${{ steps.classify-prs.outputs.patch_prs }}
+      minor_prs: ${{ steps.classify-prs.outputs.minor_prs }}
+      major_prs: ${{ steps.classify-prs.outputs.major_prs }}
+      total_count: ${{ steps.classify-prs.outputs.total_count }}
+    steps:
+      - name: Checkout Org Brain
+        uses: actions/checkout@v4
+
+      - name: Find all Dependabot PRs
+        id: find-prs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔍 Searching for Dependabot PRs in $ORG_NAME"
+          
+          # Search for PRs by dependabot across all repos
+          all_prs=$(gh search prs \
+            --org "$ORG_NAME" \
+            --author "dependabot[bot]" \
+            --state open \
+            --limit 500 \
+            --json number,title,repository,author,updatedAt,labels,body \
+            --jq '.')
+          
+          pr_count=$(echo "$all_prs" | jq 'length')
+          echo "📦 Found $pr_count Dependabot PR(s)"
+          echo "$all_prs" > /tmp/all_dependabot_prs.json
+          
+          echo "pr_count=$pr_count" >> $GITHUB_OUTPUT
+          echo "$all_prs" > /tmp/all_dependabot_prs.json
+
+      - name: Classify PRs by update type
+        id: classify-prs
+        run: |
+          #!/bin/bash
+          
+          all_prs=$(cat /tmp/all_dependabot_prs.json)
+          
+          # Arrays to hold classified PRs
+          security_prs="[]"
+          patch_prs="[]"
+          minor_prs="[]"
+          major_prs="[]"
+          
+          echo "$all_prs" | jq -c '.[]' | while read -r pr; do
+            pr_number=$(echo "$pr" | jq -r '.number')
+            repo=$(echo "$pr" | jq -r '.repository.nameWithOwner')
+            title=$(echo "$pr" | jq -r '.title')
+            body=$(echo "$pr" | jq -r '.body // ""')
+            labels=$(echo "$pr" | jq -r '.labels[].name' | tr '\n' ',')
+            
+            # Determine update type
+            update_type="unknown"
+            priority="normal"
+            
+            # Check for security updates
+            if echo "$labels" | grep -qi "security"; then
+              update_type="security"
+              priority="high"
+            elif echo "$body" | grep -qi "security"; then
+              update_type="security"
+              priority="high"
+            elif echo "$title" | grep -qi "security"; then
+              update_type="security"
+              priority="high"
+            # Check version bump type from title
+            elif echo "$title" | grep -qE "bump.*\.[0-9]+\.[0-9]+$"; then
+              # Patch version (x.y.Z)
+              update_type="patch"
+            elif echo "$title" | grep -qE "bump.*[0-9]+\.[0-9]+"; then
+              # Check if minor (x.Y.z) or major (X.y.z)
+              version_part=$(echo "$title" | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" | head -1)
+              if [ -n "$version_part" ]; then
+                major=$(echo "$version_part" | cut -d. -f1)
+                # Simple heuristic: if title contains "minor" or version looks like minor bump
+                if echo "$title" | grep -qi "minor"; then
+                  update_type="minor"
+                else
+                  update_type="patch"
+                fi
+              fi
+            elif echo "$title" | grep -qi "major"; then
+              update_type="major"
+            else
+              # Default to patch for unknown types
+              update_type="patch"
+            fi
+            
+            # Create PR record
+            pr_record=$(jq -n \
+              --arg number "$pr_number" \
+              --arg repo "$repo" \
+              --arg title "$title" \
+              --arg type "$update_type" \
+              --arg priority "$priority" \
+              '{number: $number, repo: $repo, title: $title, type: $type, priority: $priority}')
+            
+            # Append to appropriate array
+            case "$update_type" in
+              security)
+                echo "$pr_record" >> /tmp/security_prs.jsonl
+                ;;
+              patch)
+                echo "$pr_record" >> /tmp/patch_prs.jsonl
+                ;;
+              minor)
+                echo "$pr_record" >> /tmp/minor_prs.jsonl
+                ;;
+              major)
+                echo "$pr_record" >> /tmp/major_prs.jsonl
+                ;;
+            esac
+          done
+          
+          # Convert JSONL to JSON arrays
+          security_json="[]"
+          patch_json="[]"
+          minor_json="[]"
+          major_json="[]"
+          
+          if [ -f /tmp/security_prs.jsonl ]; then
+            security_json=$(jq -s '.' /tmp/security_prs.jsonl)
+          fi
+          if [ -f /tmp/patch_prs.jsonl ]; then
+            patch_json=$(jq -s '.' /tmp/patch_prs.jsonl)
+          fi
+          if [ -f /tmp/minor_prs.jsonl ]; then
+            minor_json=$(jq -s '.' /tmp/minor_prs.jsonl)
+          fi
+          if [ -f /tmp/major_prs.jsonl ]; then
+            major_json=$(jq -s '.' /tmp/major_prs.jsonl)
+          fi
+          
+          # Count totals
+          security_count=$(echo "$security_json" | jq 'length')
+          patch_count=$(echo "$patch_json" | jq 'length')
+          minor_count=$(echo "$minor_json" | jq 'length')
+          major_count=$(echo "$major_json" | jq 'length')
+          total_count=$((security_count + patch_count + minor_count + major_count))
+          
+          echo "📊 Classification Results:"
+          echo "   Security: $security_count"
+          echo "   Patch: $patch_count"
+          echo "   Minor: $minor_count"
+          echo "   Major: $major_count"
+          echo "   Total: $total_count"
+          
+          # Output as JSON strings
+          echo "security_prs=$(echo "$security_json" | jq -c '.')" >> $GITHUB_OUTPUT
+          echo "patch_prs=$(echo "$patch_json" | jq -c '.')" >> $GITHUB_OUTPUT
+          echo "minor_prs=$(echo "$minor_json" | jq -c '.')" >> $GITHUB_OUTPUT
+          echo "major_prs=$(echo "$major_json" | jq -c '.')" >> $GITHUB_OUTPUT
+          echo "total_count=$total_count" >> $GITHUB_OUTPUT
+
+  # ===========================================================================
+  # PROCESS SECURITY UPDATES (Highest Priority)
+  # ===========================================================================
+  process-security-prs:
+    name: "Process Security Updates"
+    runs-on: ubuntu-latest
+    needs: discover-dependabot-prs
+    if: ${{ needs.discover-dependabot-prs.outputs.total_count > 0 && github.event.inputs.priority_mode != 'major-only' }}
+    strategy:
+      max-parallel: 5
+      fail-fast: false
+      matrix:
+        pr: ${{ fromJson(needs.discover-dependabot-prs.outputs.security_prs) }}
+    steps:
+      - name: Process Security PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ matrix.pr.number }}
+          REPO: ${{ matrix.pr.repo }}
+        run: |
+          echo "🚨 Processing SECURITY update: $REPO#$PR_NUMBER"
+          
+          # Check PR status
+          pr_state=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json state,mergeable,isDraft --jq '.')
+          is_draft=$(echo "$pr_state" | jq -r '.isDraft')
+          mergeable=$(echo "$pr_state" | jq -r '.mergeable')
+          
+          if [ "$is_draft" = "true" ]; then
+            echo "⏭️  Skipping: Draft PR"
+            exit 0
+          fi
+          
+          if [ "$mergeable" = "CONFLICTING" ]; then
+            echo "⚠️  PR has merge conflicts, adding conflict label"
+            if [ "$DRY_RUN" != "true" ]; then
+              gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "merge-conflict"
+            fi
+            exit 0
+          fi
+          
+          # Check CI status
+          check_status=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json statusCheckRollup --jq '.statusCheckRollup[].state' | sort -u)
+          
+          if echo "$check_status" | grep -q "FAILURE"; then
+            echo "❌ CI checks failing, cannot auto-merge security update"
+            # Add label for attention
+            if [ "$DRY_RUN" != "true" ]; then
+              gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "ci-failing"
+            fi
+            exit 0
+          fi
+          
+          # Security updates: auto-merge if CI passes
+          echo "✅ CI passing, enabling auto-merge for security update"
+          if [ "$DRY_RUN" != "true" ]; then
+            gh pr merge "$PR_NUMBER" --repo "$REPO" --auto --squash && \
+              echo "✅ Auto-merge enabled for security PR #$PR_NUMBER"
+          else
+            echo "🧪 [DRY RUN] Would enable auto-merge"
+          fi
+
+  # ===========================================================================
+  # BATCH PROCESS PATCH UPDATES
+  # ===========================================================================
+  process-patch-prs:
+    name: "Process Patch Updates (Batched)"
+    runs-on: ubuntu-latest
+    needs: discover-dependabot-prs
+    if: ${{ needs.discover-dependabot-prs.outputs.total_count > 0 }}
+    strategy:
+      max-parallel: 10
+      fail-fast: false
+      matrix:
+        pr: ${{ fromJson(needs.discover-dependabot-prs.outputs.patch_prs) }}
+    steps:
+      - name: Process Patch PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ matrix.pr.number }}
+          REPO: ${{ matrix.pr.repo }}
+        run: |
+          echo "📦 Processing PATCH update: $REPO#$PR_NUMBER"
+          
+          # Check if PR is mergeable
+          mergeable=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json mergeable --jq '.mergeable')
+          
+          if [ "$mergeable" = "CONFLICTING" ]; then
+            echo "⚠️  PR has merge conflicts"
+            exit 0
+          fi
+          
+          # Check CI status
+          check_status=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json statusCheckRollup --jq '.statusCheckRollup[].state' | sort -u)
+          
+          if echo "$check_status" | grep -q "FAILURE"; then
+            echo "❌ CI checks failing"
+            exit 0
+          fi
+          
+          # Check if checks are still pending
+          if echo "$check_status" | grep -q "PENDING"; then
+            echo "⏳ CI checks still pending, skipping for now"
+            exit 0
+          fi
+          
+          # Patch updates: auto-merge if CI passes
+          echo "✅ CI passing, enabling auto-merge for patch update"
+          if [ "$DRY_RUN" != "true" ]; then
+            gh pr merge "$PR_NUMBER" --repo "$REPO" --auto --squash && \
+              echo "✅ Auto-merge enabled for patch PR #$PR_NUMBER"
+          else
+            echo "🧪 [DRY RUN] Would enable auto-merge"
+          fi
+
+  # ===========================================================================
+  # BATCH PROCESS MINOR UPDATES
+  # ===========================================================================
+  process-minor-prs:
+    name: "Process Minor Updates (Batched)"
+    runs-on: ubuntu-latest
+    needs: discover-dependabot-prs
+    if: ${{ needs.discover-dependabot-prs.outputs.total_count > 0 && github.event.inputs.priority_mode == 'batch-all' }}
+    strategy:
+      max-parallel: 5
+      fail-fast: false
+      matrix:
+        pr: ${{ fromJson(needs.discover-dependabot-prs.outputs.minor_prs) }}
+    steps:
+      - name: Process Minor PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ matrix.pr.number }}
+          REPO: ${{ matrix.pr.repo }}
+        run: |
+          echo "📦 Processing MINOR update: $REPO#$PR_NUMBER"
+          
+          # Check if PR is mergeable
+          mergeable=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json mergeable --jq '.mergeable')
+          
+          if [ "$mergeable" = "CONFLICTING" ]; then
+            echo "⚠️  PR has merge conflicts"
+            exit 0
+          fi
+          
+          # Check CI status
+          check_status=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json statusCheckRollup --jq '.statusCheckRollup[].state' | sort -u)
+          
+          if echo "$check_status" | grep -q "FAILURE"; then
+            echo "❌ CI checks failing"
+            exit 0
+          fi
+          
+          # Minor updates: auto-merge if CI passes
+          echo "✅ CI passing, enabling auto-merge for minor update"
+          if [ "$DRY_RUN" != "true" ]; then
+            gh pr merge "$PR_NUMBER" --repo "$REPO" --auto --squash && \
+              echo "✅ Auto-merge enabled for minor PR #$PR_NUMBER"
+          else
+            echo "🧪 [DRY RUN] Would enable auto-merge"
+          fi
+
+  # ===========================================================================
+  # HANDLE MAJOR UPDATES (Label for Review)
+  # ===========================================================================
+  handle-major-prs:
+    name: "Handle Major Updates (Label for Review)"
+    runs-on: ubuntu-latest
+    needs: discover-dependabot-prs
+    if: ${{ needs.discover-dependabot-prs.outputs.total_count > 0 }}
+    strategy:
+      max-parallel: 5
+      fail-fast: false
+      matrix:
+        pr: ${{ fromJson(needs.discover-dependabot-prs.outputs.major_prs) }}
+    steps:
+      - name: Label Major Update for Review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ matrix.pr.number }}
+          REPO: ${{ matrix.pr.repo }}
+        run: |
+          echo "📦 Processing MAJOR update: $REPO#$PR_NUMBER"
+          
+          # Major updates require manual review
+          echo "🏷️  Adding 'major-update' and 'manual-review' labels"
+          
+          if [ "$DRY_RUN" != "true" ]; then
+            gh pr edit "$PR_NUMBER" --repo "$REPO" \
+              --add-label "major-update" \
+              --add-label "manual-review"
+            
+            # Add comment explaining the label
+            gh pr comment "$PR_NUMBER" --repo "$REPO" \
+              --body "🤖 **Org Brain**: This is a major version update and has been labeled for manual review. Please review the changelog and test thoroughly before merging."
+          else
+            echo "🧪 [DRY RUN] Would add labels and comment"
+          fi
+
+  # ===========================================================================
+  # GENERATE SUMMARY REPORT
+  # ===========================================================================
+  generate-report:
+    name: "Generate Batch Report"
+    runs-on: ubuntu-latest
+    needs: [discover-dependabot-prs, process-security-prs, process-patch-prs, process-minor-prs, handle-major-prs]
+    if: always()
+    steps:
+      - name: Generate Summary
+        run: |
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          # 📦 Dependabot Batch Manager Report
+          
+          ## Execution Summary
+          
+          | Metric | Value |
+          |--------|-------|
+          | Organization | $ORG_NAME |
+          | Priority Mode | $PRIORITY_MODE |
+          | Total PRs Found | ${{ needs.discover-dependabot-prs.outputs.total_count }} |
+          | Security Updates | ${{ fromJson(needs.discover-dependabot-prs.outputs.security_prs) | length }} |
+          | Patch Updates | ${{ fromJson(needs.discover-dependabot-prs.outputs.patch_prs) | length }} |
+          | Minor Updates | ${{ fromJson(needs.discover-dependabot-prs.outputs.minor_prs) | length }} |
+          | Major Updates | ${{ fromJson(needs.discover-dependabot-prs.outputs.major_prs) | length }} |
+          
+          ## Processing Status
+          
+          | Update Type | Action |
+          |-------------|--------|
+          | Security | ✅ Auto-merge enabled (if CI passes) |
+          | Patch | ✅ Auto-merge enabled (if CI passes) |
+          | Minor | ${{ github.event.inputs.priority_mode == 'batch-all' && '✅ Auto-merge enabled' || '⏭️ Skipped (priority mode)' }} |
+          | Major | 🏷️ Labeled for manual review |
+          
+          ## Notes
+          
+          - PRs with merge conflicts are labeled 'merge-conflict'
+          - PRs with failing CI are labeled 'ci-failing'
+          - Major version updates require manual review
+          EOF

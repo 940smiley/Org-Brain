@@ -1,0 +1,441 @@
+# =============================================================================
+# ORG AUTOMATION CONFLICT DETECTOR
+# =============================================================================
+# Purpose: Detect when multiple automation bots are modifying the same PR
+#
+# Features:
+#   - Monitors PRs for concurrent bot activity
+#   - Detects commits from different bot authors within short time windows
+#   - Automatically labels conflicting PRs to prevent automation loops
+#   - Posts informative comments to notify maintainers
+#
+# Triggers:
+#   - Schedule: Every 15 minutes for active monitoring
+#   - Pull Request events (synchronize, opened, labeled)
+#   - Manual dispatch for on-demand conflict checks
+#
+# Conflict Detection Logic:
+#   - Time window: 10 minutes
+#   - If 2+ different bots commit within window → CONFLICT
+#   - Bots monitored: dependabot[bot], amazon-q[bot], and other [bot] accounts
+#
+# Actions on Conflict:
+#   1. Label PR with "automation-conflict"
+#   2. Add "automation-lock" to prevent further automation
+#   3. Post comment explaining the conflict
+#   4. Stop all automation on the PR
+# =============================================================================
+
+name: "⚠️ Org Automation Conflict Detector"
+
+on:
+  schedule:
+    # Run every 15 minutes
+    - cron: "*/15 * * * *"
+  pull_request:
+    types: [synchronize, opened, labeled, unlabeled]
+  workflow_dispatch:
+    inputs:
+      org:
+        description: "GitHub organization name"
+        required: false
+        type: string
+      pr_number:
+        description: "Specific PR number to check (optional)"
+        required: false
+        type: string
+      time_window_minutes:
+        description: "Time window for conflict detection (minutes)"
+        required: false
+        type: number
+        default: "10"
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: read
+
+env:
+  ORG_NAME: ${{ github.event.inputs.org || github.repository_owner }}
+  TIME_WINDOW_MINUTES: ${{ github.event.inputs.time_window_minutes || 10 }}
+  SPECIFIC_PR: ${{ github.event.inputs.pr_number || '' }}
+
+jobs:
+  # ===========================================================================
+  # CHECK SPECIFIC PR (if triggered by PR event or specific PR input)
+  # ===========================================================================
+  check-specific-pr:
+    name: "Check Specific PR"
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' || github.event.inputs.pr_number != '' }}
+    outputs:
+      has_conflict: ${{ steps.detect-conflict.outputs.has_conflict }}
+      conflict_details: ${{ steps.detect-conflict.outputs.conflict_details }}
+    steps:
+      - name: Checkout Org Brain
+        uses: actions/checkout@v4
+
+      - name: Detect Automation Conflict
+        id: detect-conflict
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.inputs.pr_number || github.event.pull_request.number }}
+        run: |
+          #!/bin/bash
+          
+          echo "🔍 Checking for automation conflicts in PR #$PR_NUMBER"
+          
+          # Get all commits on the PR
+          commits=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json commits --jq '.commits[].commit')
+          
+          if [ -z "$commits" ] || [ "$commits" = "null" ]; then
+            echo "ℹ️  No commits found or unable to fetch commits"
+            echo "has_conflict=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Get commit authors and timestamps
+          commit_info=$(gh pr view "$PR_NUMBER" --repo "$REPO" \
+            --json 'commits' \
+            --jq '.commits[] | {author: .commit.author.name, email: .commit.author.email, date: .commit.author.date, message: .commit.message}')
+          
+          echo "📝 Commit information:"
+          echo "$commit_info" | jq -c '.[]'
+          
+          # Identify bot commits within time window
+          current_time=$(date +%s)
+          window_seconds=$((TIME_WINDOW_MINUTES * 60))
+          
+          bot_commits="[]"
+          bot_authors="[]"
+          
+          echo "$commit_info" | jq -c '.[]' | while read -r commit; do
+            author=$(echo "$commit" | jq -r '.author')
+            email=$(echo "$commit" | jq -r '.email')
+            date_str=$(echo "$commit" | jq -r '.date')
+            
+            # Check if author is a bot
+            is_bot=false
+            if echo "$author" | grep -q "\[bot\]"; then
+              is_bot=true
+            elif echo "$email" | grep -q "dependabot"; then
+              is_bot=true
+            elif echo "$email" | grep -q "amazon-q"; then
+              is_bot=true
+            fi
+            
+            if [ "$is_bot" = "true" ]; then
+              # Convert date to timestamp
+              commit_time=$(date -d "$date_str" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%S" "$date_str" +%s 2>/dev/null || echo "0")
+              time_diff=$((current_time - commit_time))
+              
+              if [ "$time_diff" -lt "$window_seconds" ]; then
+                echo "🤖 Bot commit found: $author at $date_str (${time_diff}s ago)"
+                echo "$commit" >> /tmp/bot_commits.jsonl
+                echo "$author" >> /tmp/bot_authors.txt
+              fi
+            fi
+          done
+          
+          # Count unique bot authors
+          if [ -f /tmp/bot_authors.txt ]; then
+            unique_bots=$(sort -u /tmp/bot_authors.txt | wc -l)
+            bot_count=$(wc -l < /tmp/bot_authors.txt)
+          else
+            unique_bots=0
+            bot_count=0
+          fi
+          
+          echo ""
+          echo "📊 Analysis Results:"
+          echo "   Bot commits in window: $bot_count"
+          echo "   Unique bot authors: $unique_bots"
+          
+          # Determine if there's a conflict
+          has_conflict=false
+          conflict_reason=""
+          
+          if [ "$unique_bots" -gt 1 ]; then
+            has_conflict=true
+            conflict_reason="Multiple bot authors ($unique_bots) detected within $TIME_WINDOW_MINUTES minute window"
+            echo "⚠️  CONFLICT DETECTED: $conflict_reason"
+            
+            # List conflicting bots
+            echo "   Conflicting bots:"
+            sort -u /tmp/bot_authors.txt | while read -r bot; do
+              echo "     - $bot"
+            done
+          elif [ "$bot_count" -gt 3 ]; then
+            has_conflict=true
+            conflict_reason="Excessive bot activity ($bot_count commits) within $TIME_WINDOW_MINUTES minute window"
+            echo "⚠️  CONFLICT DETECTED: $conflict_reason"
+          fi
+          
+          # Output results
+          echo "has_conflict=$has_conflict" >> $GITHUB_OUTPUT
+          
+          if [ "$has_conflict" = "true" ]; then
+            conflict_details=$(jq -n \
+              --arg reason "$conflict_reason" \
+              --argjson unique_bots "$unique_bots" \
+              --argjson bot_count "$bot_count" \
+              '{reason: $reason, unique_bots: $unique_bots, total_commits: $bot_count}')
+            echo "conflict_details=$conflict_details" >> $GITHUB_OUTPUT
+          else
+            echo "conflict_details=null" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Apply Conflict Labels and Comment
+        if: ${{ steps.detect-conflict.outputs.has_conflict == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.inputs.pr_number || github.event.pull_request.number }}
+        run: |
+          echo "🏷️  Applying conflict labels to PR #$PR_NUMBER"
+          
+          # Check if already labeled
+          current_labels=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels --jq '.labels[].name' | tr '\n' ',')
+          
+          if echo "$current_labels" | grep -q "automation-conflict"; then
+            echo "ℹ️  PR already has automation-conflict label"
+          else
+            # Add conflict label
+            gh pr edit "$PR_NUMBER" --repo "$REPO" \
+              --add-label "automation-conflict" \
+              --add-label "automation-lock"
+            echo "✅ Added automation-conflict and automation-lock labels"
+          fi
+          
+          # Post comment
+          echo "💬 Posting conflict notification comment"
+          gh pr comment "$PR_NUMBER" --repo "$REPO" \
+            --body "⚠️ **Automation Conflict Detected**
+          
+          🤖 **Org Brain** has detected multiple automation bots attempting to modify this PR within a short time window.
+          
+          **Reason:** ${{ fromJson(steps.detect-conflict.outputs.conflict_details).reason }}
+          
+          **Actions Taken:**
+          - Added \`automation-conflict\` label
+          - Added \`automation-lock\` label to prevent further automated changes
+          
+          **Next Steps:**
+          - Please review the changes manually
+          - Remove the \`automation-lock\` label when ready to re-enable automation
+          
+          ---
+          *This is an automated message from Org Brain. To disable, remove the workflow or add this repo to the exclude list.*"
+
+  # ===========================================================================
+  # SCAN ALL ACTIVE PRS FOR CONFLICTS
+  # ===========================================================================
+  scan-all-prs:
+    name: "Scan All Active PRs"
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number == '') }}
+    outputs:
+      conflicts_found: ${{ steps.scan.outputs.conflicts_found }}
+      conflict_prs: ${{ steps.scan.outputs.conflict_prs }}
+    steps:
+      - name: Checkout Org Brain
+        uses: actions/checkout@v4
+
+      - name: Scan All Open PRs for Conflicts
+        id: scan
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          #!/bin/bash
+          
+          echo "🔍 Scanning all open PRs in $ORG_NAME for automation conflicts"
+          
+          # Get all open PRs across the organization
+          all_prs=$(gh search prs \
+            --org "$ORG_NAME" \
+            --state open \
+            --limit 500 \
+            --json number,title,repository,author,updatedAt \
+            --jq '.')
+          
+          pr_count=$(echo "$all_prs" | jq 'length')
+          echo "📋 Found $pr_count open PR(s)"
+          
+          conflicts_found=0
+          conflict_pr_list="[]"
+          
+          # Check each PR for bot activity
+          echo "$all_prs" | jq -c '.[]' | while read -r pr; do
+            pr_number=$(echo "$pr" | jq -r '.number')
+            repo=$(echo "$pr" | jq -r '.repository.nameWithOwner')
+            pr_title=$(echo "$pr" | jq -r '.title')
+            
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "📝 Checking PR #$pr_number: $pr_title ($repo)"
+            
+            # Skip if already labeled with automation-conflict
+            labels=$(gh pr view "$pr_number" --repo "$repo" --json labels --jq '.labels[].name' 2>/dev/null | tr '\n' ',')
+            
+            if echo "$labels" | grep -q "automation-conflict"; then
+              echo "⏭️  Skipping: Already has automation-conflict label"
+              continue
+            fi
+            
+            # Get commits and check for bot conflicts
+            commit_info=$(gh pr view "$pr_number" --repo "$repo" \
+              --json 'commits' \
+              --jq '.commits[] | {author: .commit.author.name, date: .commit.author.date}' 2>/dev/null)
+            
+            if [ -z "$commit_info" ] || [ "$commit_info" = "null" ]; then
+              echo "ℹ️  No commits found"
+              continue
+            fi
+            
+            # Analyze commits for conflicts
+            current_time=$(date +%s)
+            window_seconds=$((TIME_WINDOW_MINUTES * 60))
+            
+            rm -f /tmp/pr_bot_authors.txt
+            echo "$commit_info" | jq -c '.[]' | while read -r commit; do
+              author=$(echo "$commit" | jq -r '.author')
+              date_str=$(echo "$commit" | jq -r '.date')
+              
+              if echo "$author" | grep -q "\[bot\]"; then
+                commit_time=$(date -d "$date_str" +%s 2>/dev/null || echo "0")
+                time_diff=$((current_time - commit_time))
+                
+                if [ "$time_diff" -lt "$window_seconds" ]; then
+                  echo "$author" >> /tmp/pr_bot_authors.txt
+                fi
+              fi
+            done
+            
+            if [ -f /tmp/pr_bot_authors.txt ]; then
+              unique_bots=$(sort -u /tmp/pr_bot_authors.txt | wc -l)
+              
+              if [ "$unique_bots" -gt 1 ]; then
+                echo "⚠️  CONFLICT: $unique_bots different bots active in time window"
+                echo "$repo:$pr_number" >> /tmp/conflict_prs.txt
+                conflicts_found=$((conflicts_found + 1))
+              fi
+            fi
+          done
+          
+          # Count total conflicts
+          if [ -f /tmp/conflict_prs.txt ]; then
+            conflicts_found=$(wc -l < /tmp/conflict_prs.txt)
+            conflict_pr_list=$(cat /tmp/conflict_prs.txt | jq -R -s 'split("\n") | map(select(length > 0))')
+          fi
+          
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📊 Scan Complete:"
+          echo "   Conflicts Found: $conflicts_found"
+          
+          echo "conflicts_found=$conflicts_found" >> $GITHUB_OUTPUT
+          echo "conflict_prs=$conflict_pr_list" >> $GITHUB_OUTPUT
+
+  # ===========================================================================
+  # RESOLVE CONFLICTS (Apply Labels and Comments)
+  # ===========================================================================
+  resolve-conflicts:
+    name: "Resolve Detected Conflicts"
+    runs-on: ubuntu-latest
+    needs: scan-all-prs
+    if: ${{ needs.scan-all-prs.outputs.conflicts_found > 0 }}
+    strategy:
+      max-parallel: 10
+      fail-fast: false
+      matrix:
+        conflict_pr: ${{ fromJson(needs.scan-all-prs.outputs.conflict_prs) }}
+    steps:
+      - name: Apply Conflict Resolution
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CONFLICT_PR: ${{ matrix.conflict_pr }}
+        run: |
+          #!/bin/bash
+          
+          repo=$(echo "$CONFLICT_PR" | cut -d: -f1)
+          pr_number=$(echo "$CONFLICT_PR" | cut -d: -f2)
+          
+          echo "🔧 Resolving conflict for $repo#$pr_number"
+          
+          # Check current labels
+          current_labels=$(gh pr view "$pr_number" --repo "$repo" --json labels --jq '.labels[].name' | tr '\n' ',')
+          
+          if echo "$current_labels" | grep -q "automation-conflict"; then
+            echo "ℹ️  Already labeled, skipping"
+            exit 0
+          fi
+          
+          # Apply labels
+          gh pr edit "$pr_number" --repo "$repo" \
+            --add-label "automation-conflict" \
+            --add-label "automation-lock"
+          
+          echo "✅ Labels applied"
+          
+          # Post comment
+          gh pr comment "$pr_number" --repo "$repo" \
+            --body "⚠️ **Automation Conflict Detected**
+          
+          🤖 **Org Brain** has detected multiple automation bots attempting to modify this PR within a $TIME_WINDOW_MINUTES minute time window.
+          
+          **Actions Taken:**
+          - Added \`automation-conflict\` label
+          - Added \`automation-lock\` label to prevent further automated changes
+          
+          **Next Steps:**
+          - Please review the changes manually
+          - Remove the \`automation-lock\` label when ready to re-enable automation
+          
+          ---
+          *This is an automated message from Org Brain.*"
+          
+          echo "✅ Comment posted"
+
+  # ===========================================================================
+  # GENERATE CONFLICT REPORT
+  # ===========================================================================
+  conflict-report:
+    name: "Generate Conflict Report"
+    runs-on: ubuntu-latest
+    needs: [check-specific-pr, scan-all-prs, resolve-conflicts]
+    if: always()
+    steps:
+      - name: Generate Summary
+        run: |
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          # ⚠️ Automation Conflict Detection Report
+          
+          ## Scan Results
+          
+          | Metric | Value |
+          |--------|-------|
+          | Organization | $ORG_NAME |
+          | Time Window | $TIME_WINDOW_MINUTES minutes |
+          | Conflicts Found | ${{ needs.scan-all-prs.outputs.conflicts_found || 0 }} |
+          
+          ## Status
+          
+          ${{ needs.scan-all-prs.outputs.conflicts_found > 0 && '⚠️ Conflicts detected and labeled' || '✅ No conflicts detected' }}
+          
+          ## Conflict Resolution
+          
+          When a conflict is detected:
+          1. PR is labeled with \`automation-conflict\`
+          2. PR is labeled with \`automation-lock\` to prevent further automation
+          3. A comment is posted explaining the situation
+          4. Manual review is required to proceed
+          
+          ## How to Resolve
+          
+          To re-enable automation on a conflicting PR:
+          1. Review the changes from all bots
+          2. Remove the \`automation-lock\` label
+          3. Automation will resume on next run
+          
+          EOF
