@@ -1,0 +1,123 @@
+# =============================================================================
+# DEPLOY PAGES - GitHub Pages Dashboard Deployment
+# =============================================================================
+# Purpose: Deploy the Org Brain dashboard to GitHub Pages
+#
+# Features:
+#   - Builds static dashboard from dashboard/ directory
+#   - Deploys to gh-pages branch for GitHub Pages hosting
+#   - Runs on push to main/master or manual dispatch
+#
+# Triggers:
+#   - Push to main/master branch
+#   - Manual workflow dispatch
+#   - After generate-repo-data workflow completes
+#
+# Output:
+#   - Dashboard available at https://<org>.github.io/org-brain/
+# =============================================================================
+
+name: "🚀 Deploy Pages"
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'dashboard/**'
+      - 'docs/**'
+      - '.github/workflows/deploy-pages.yml'
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: "Force deployment even if no changes detected"
+        required: false
+        type: boolean
+        default: false
+  workflow_run:
+    workflows: ["📊 Generate Repo Data"]
+    types:
+      - completed
+
+# Grant necessary permissions for Pages deployment
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  # ===========================================================================
+  # DEPLOY TO GITHUB PAGES
+  # ===========================================================================
+  deploy:
+    name: "Deploy to GitHub Pages"
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Prepare Dashboard Files
+        run: |
+          echo "📁 Preparing dashboard files for deployment"
+          
+          # Create deployment directory
+          mkdir -p /tmp/pages-deploy
+          
+          # Copy dashboard files
+          cp -r dashboard/* /tmp/pages-deploy/
+          
+          # Copy docs index (main entry point)
+          if [ -f "docs/index.html" ]; then
+            cp docs/index.html /tmp/pages-deploy/
+          fi
+          
+          # Copy generated data if exists
+          if [ -f "data/repos.json" ]; then
+            cp data/repos.json /tmp/pages-deploy/
+          else
+            # Create empty data file
+            echo '[]' > /tmp/pages-deploy/repos.json
+            echo "⚠️  No repos.json found, created empty data file"
+          fi
+          
+          # List deployment contents
+          echo "📦 Deployment contents:"
+          ls -la /tmp/pages-deploy/
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '/tmp/pages-deploy'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Deployment Summary
+        run: |
+          echo "✅ Dashboard deployed successfully!"
+          echo ""
+          echo "📊 Dashboard URL: ${{ steps.deployment.outputs.page_url }}"
+          echo ""
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ✅ Success |" >> $GITHUB_STEP_SUMMARY
+          echo "| URL | ${{ steps.deployment.outputs.page_url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Timestamp | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,311 @@
+# =============================================================================
+# GENERATE REPO DATA - Repository Data Collection
+# =============================================================================
+# Purpose: Use GitHub CLI to collect organization repository data
+#
+# Features:
+#   - Fetches all repositories in the organization
+#   - Collects metadata: name, description, stars, forks, language, etc.
+#   - Generates data/repos.json for dashboard consumption
+#   - Includes workflow status and health metrics
+#
+# Triggers:
+#   - Schedule: Daily at 2 AM UTC
+#   - Manual workflow dispatch
+#   - On push to main/master (initial generation)
+#
+# Output:
+#   - data/repos.json with complete repository information
+#   - Commits changes back to repository
+# =============================================================================
+
+name: "📊 Generate Repo Data"
+
+on:
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: "0 2 * * *"
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - '.github/workflows/generate-repo-data.yml'
+  workflow_dispatch:
+    inputs:
+      org:
+        description: "GitHub organization name (defaults to current org)"
+        required: false
+        type: string
+      include_archived:
+        description: "Include archived repositories"
+        required: false
+        type: boolean
+        default: false
+      fetch_workflows:
+        description: "Fetch workflow status for each repo"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: read
+  actions: read
+
+env:
+  ORG_NAME: ${{ github.event.inputs.org || github.repository_owner }}
+  INCLUDE_ARCHIVED: ${{ github.event.inputs.include_archived || false }}
+  FETCH_WORKFLOWS: ${{ github.event.inputs.fetch_workflows || true }}
+  DATA_FILE: "data/repos.json"
+  COMMIT_EMAIL: "org-brain-bot@github.com"
+  COMMIT_NAME: "Org Brain Bot"
+
+jobs:
+  # ===========================================================================
+  # GENERATE REPOSITORY DATA
+  # ===========================================================================
+  generate-data:
+    name: "Generate Repository Data"
+    runs-on: ubuntu-latest
+    outputs:
+      repo_count: ${{ steps.generate.outputs.repo_count }}
+      data_changed: ${{ steps.check-changes.outputs.data_changed }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create Data Directory
+        run: |
+          mkdir -p data
+          echo "📁 Data directory ready"
+
+      - name: Generate Repository Data
+        id: generate
+        env:
+          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          #!/bin/bash
+          
+          echo "🔍 Fetching repositories for organization: $ORG_NAME"
+          
+          # Fetch all repositories with detailed information
+          repos_json=$(gh api "/orgs/$ORG_NAME/repos?per_page=100&type=all" --paginate)
+          
+          # Filter archived if needed
+          if [ "$INCLUDE_ARCHIVED" = "false" ]; then
+            repos_json=$(echo "$repos_json" | jq '[.[] | select(.archived == false)]')
+          fi
+          
+          repo_count=$(echo "$repos_json" | jq 'length')
+          echo "📦 Found $repo_count repositories"
+          echo "repo_count=$repo_count" >> $GITHUB_OUTPUT
+          
+          # Generate enhanced repository data
+          echo "📝 Generating enhanced repository data..."
+          
+          # Create array for processed repos
+          processed_repos="[]"
+          
+          # Process each repository
+          echo "$repos_json" | jq -c '.[]' | while read -r repo; do
+            name=$(echo "$repo" | jq -r '.name')
+            full_name=$(echo "$repo" | jq -r '.full_name')
+            description=$(echo "$repo" | jq -r '.description // "No description"')
+            html_url=$(echo "$repo" | jq -r '.html_url')
+            language=$(echo "$repo" | jq -r '.language // "Unknown"')
+            stargazers_count=$(echo "$repo" | jq -r '.stargazers_count')
+            forks_count=$(echo "$repo" | jq -r '.forks_count')
+            open_issues_count=$(echo "$repo" | jq -r '.open_issues_count')
+            archived=$(echo "$repo" | jq -r '.archived')
+            private=$(echo "$repo" | jq -r '.private')
+            created_at=$(echo "$repo" | jq -r '.created_at')
+            updated_at=$(echo "$repo" | jq -r '.updated_at')
+            pushed_at=$(echo "$repo" | jq -r '.pushed_at')
+            homepage=$(echo "$repo" | jq -r '.homepage // ""')
+            topics=$(echo "$repo" | jq -c '.topics // []')
+            default_branch=$(echo "$repo" | jq -r '.default_branch')
+            has_wiki=$(echo "$repo" | jq -r '.has_wiki')
+            has_pages=$(echo "$repo" | jq -r '.has_pages')
+            license=$(echo "$repo" | jq -r '.license.spdx_id // "None"')
+            
+            # Get workflow status if enabled
+            workflow_status="unknown"
+            workflow_count=0
+            if [ "$FETCH_WORKFLOWS" = "true" ]; then
+              # Get workflows
+              workflows=$(gh api "/repos/$ORG_NAME/$name/actions/workflows" 2>/dev/null || echo '{"workflows":[]}')
+              workflow_count=$(echo "$workflows" | jq '.workflows | length')
+              
+              # Check recent workflow runs
+              if [ "$workflow_count" -gt 0 ]; then
+                recent_runs=$(gh api "/repos/$ORG_NAME/$name/actions/runs?per_page=10" 2>/dev/null || echo '{"workflow_runs":[]}')
+                latest_status=$(echo "$recent_runs" | jq -r '.workflow_runs[0].conclusion // "in_progress"')
+                workflow_status=$latest_status
+              fi
+            fi
+            
+            # Calculate health score (simple algorithm)
+            health_score=100
+            
+            # Deduct for no recent activity (30 days)
+            pushed_timestamp=$(date -d "$pushed_at" +%s 2>/dev/null || echo "0")
+            current_timestamp=$(date +%s)
+            days_since_push=$(( (current_timestamp - pushed_timestamp) / 86400 ))
+            
+            if [ "$days_since_push" -gt 90 ]; then
+              health_score=$((health_score - 30))
+            elif [ "$days_since_push" -gt 30 ]; then
+              health_score=$((health_score - 15))
+            fi
+            
+            # Deduct for open issues
+            if [ "$open_issues_count" -gt 50 ]; then
+              health_score=$((health_score - 10))
+            fi
+            
+            # Deduct for failing workflows
+            if [ "$workflow_status" = "failure" ]; then
+              health_score=$((health_score - 20))
+            fi
+            
+            # Ensure score is between 0 and 100
+            if [ "$health_score" -lt 0 ]; then
+              health_score=0
+            fi
+            
+            # Determine health status
+            if [ "$health_score" -ge 80 ]; then
+              health_status="healthy"
+            elif [ "$health_score" -ge 60 ]; then
+              health_status="warning"
+            elif [ "$health_score" -ge 40 ]; then
+              health_status="unhealthy"
+            else
+              health_status="critical"
+            fi
+            
+            # Create repo object
+            repo_obj=$(jq -n \
+              --arg name "$name" \
+              --arg full_name "$full_name" \
+              --arg description "$description" \
+              --arg html_url "$html_url" \
+              --arg language "$language" \
+              --argjson stargazers_count "$stargazers_count" \
+              --argjson forks_count "$forks_count" \
+              --argjson open_issues_count "$open_issues_count" \
+              --argjson archived "$archived" \
+              --argjson private "$private" \
+              --arg created_at "$created_at" \
+              --arg updated_at "$updated_at" \
+              --arg pushed_at "$pushed_at" \
+              --arg homepage "$homepage" \
+              --argjson topics "$topics" \
+              --arg default_branch "$default_branch" \
+              --argjson has_wiki "$has_wiki" \
+              --argjson has_pages "$has_pages" \
+              --arg license "$license" \
+              --argjson workflow_count "$workflow_count" \
+              --arg workflow_status "$workflow_status" \
+              --argjson health_score "$health_score" \
+              --arg health_status "$health_status" \
+              --argjson days_since_push "$days_since_push" \
+              '{
+                name: $name,
+                full_name: $full_name,
+                description: $description,
+                html_url: $html_url,
+                language: $language,
+                stargazers_count: $stargazers_count,
+                forks_count: $forks_count,
+                open_issues_count: $open_issues_count,
+                archived: $archived,
+                private: $private,
+                created_at: $created_at,
+                updated_at: $updated_at,
+                pushed_at: $pushed_at,
+                homepage: $homepage,
+                topics: $topics,
+                default_branch: $default_branch,
+                has_wiki: $has_wiki,
+                has_pages: $has_pages,
+                license: $license,
+                workflow_count: $workflow_count,
+                workflow_status: $workflow_status,
+                health_score: $health_score,
+                health_status: $health_status,
+                days_since_push: $days_since_push
+              }')
+            
+            echo "$repo_obj" >> /tmp/repos_raw.jsonl
+          done
+          
+          # Convert JSONL to JSON array
+          if [ -f /tmp/repos_raw.jsonl ]; then
+            final_data=$(jq -s '.' /tmp/repos_raw.jsonl)
+            echo "$final_data" > "$DATA_FILE"
+            echo "✅ Generated $DATA_FILE with $repo_count repositories"
+          else
+            echo "[]" > "$DATA_FILE"
+            echo "⚠️  No repositories found, created empty data file"
+          fi
+          
+          # Cleanup
+          rm -f /tmp/repos_raw.jsonl
+
+      - name: Check for Data Changes
+        id: check-changes
+        run: |
+          if git diff --quiet "$DATA_FILE" 2>/dev/null; then
+            echo "📊 No changes detected in repository data"
+            echo "data_changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "📊 Changes detected in repository data"
+            echo "data_changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and Push Changes
+        if: ${{ steps.check-changes.outputs.data_changed == 'true' }}
+        run: |
+          git config user.email "$COMMIT_EMAIL"
+          git config user.name "$COMMIT_NAME"
+          
+          git add "$DATA_FILE"
+          git commit -m "chore: update repository data
+
+          Auto-generated by Org Brain
+          Repositories: ${{ steps.generate.outputs.repo_count }}
+          Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          
+          git push
+          echo "✅ Committed and pushed updated repository data"
+
+      - name: Generate Summary Report
+        run: |
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          # 📊 Repository Data Generation Report
+          
+          ## Summary
+          
+          | Metric | Value |
+          |--------|-------|
+          | Organization | $ORG_NAME |
+          | Repositories | ${{ steps.generate.outputs.repo_count }} |
+          | Data File | $DATA_FILE |
+          | Changed | ${{ steps.check-changes.outputs.data_changed }} |
+          | Generated | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |
+          
+          ## Data Fields
+          
+          Each repository includes:
+          - Basic info (name, description, URL)
+          - Statistics (stars, forks, issues)
+          - Metadata (language, license, topics)
+          - Workflow status
+          - Health score
+          
+          EOF
