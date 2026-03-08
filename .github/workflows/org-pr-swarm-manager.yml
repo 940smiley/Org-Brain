@@ -22,12 +22,14 @@
 #   - PR labeled "automation-lock"
 #   - PR modified within last 10 minutes
 #   - Draft PRs
-#   - Last commit author is a bot (dependabot[bot], amazon-q[bot], github-actions[bot])
+#   - Last commit author is a bot (dependabot[bot], amazon-q[bot], github-actions[bot], llamabot, google-jules[bot])
 #
 # Bot Author List (skip if last commit by):
 #   - dependabot[bot]
 #   - amazon-q[bot]
 #   - github-actions[bot]
+#   - llamabot
+#   - google-jules[bot]
 # =============================================================================
 
 name: "🤖 Org PR Swarm Manager"
@@ -222,9 +224,9 @@ jobs:
             fi
 
             # Skip if last commit author is a bot
-            # Bot authors: dependabot[bot], amazon-q[bot], github-actions[bot]
+            # Bot authors: dependabot[bot], amazon-q[bot], github-actions[bot], llamabot, google-jules[bot]
             last_commit_author=$(gh api "/repos/$ORG_NAME/$REPO_NAME/pulls/$pr_number/commits" --jq '.[-1].commit.author.name' 2>/dev/null || echo "")
-            if [ "$last_commit_author" = "dependabot[bot]" ] || [ "$last_commit_author" = "amazon-q[bot]" ] || [ "$last_commit_author" = "github-actions[bot]" ]; then
+            if [ "$last_commit_author" = "dependabot[bot]" ] || [ "$last_commit_author" = "amazon-q[bot]" ] || [ "$last_commit_author" = "github-actions[bot]" ] || [ "$last_commit_author" = "llamabot" ] || [ "$last_commit_author" = "google-jules[bot]" ]; then
               echo "⏭️  Skipping: Last commit author is a bot ($last_commit_author)"
               skipped=$((skipped + 1))
               continue

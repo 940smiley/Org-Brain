@@ -37,6 +37,8 @@
 #     * dependabot[bot]
 #     * amazon-q[bot]
 #     * github-actions[bot]
+#     * llamabot
+#     * google-jules[bot]
 # =============================================================================
 
 name: "🔧 Org Self-Heal"
@@ -225,7 +227,7 @@ jobs:
           fi
 
           # Check for open PRs where last commit is from a bot
-          # Bot authors: dependabot[bot], amazon-q[bot], github-actions[bot]
+          # Bot authors: dependabot[bot], amazon-q[bot], github-actions[bot], llamabot, google-jules[bot]
           open_prs=$(gh pr list --repo "$ORG_NAME/$REPO_NAME" --state open --limit 100 --json number 2>/dev/null || echo "[]")
           pr_count=$(echo "$open_prs" | jq 'length')
           
@@ -234,7 +236,7 @@ jobs:
             echo "$open_prs" | jq -c '.[]' | while read -r pr; do
               pr_num=$(echo "$pr" | jq -r '.number')
               last_author=$(gh api "/repos/$ORG_NAME/$REPO_NAME/pulls/$pr_num/commits" --jq '.[-1].commit.author.name' 2>/dev/null || echo "")
-              if [ "$last_author" = "dependabot[bot]" ] || [ "$last_author" = "amazon-q[bot]" ] || [ "$last_author" = "github-actions[bot]" ]; then
+              if [ "$last_author" = "dependabot[bot]" ] || [ "$last_author" = "amazon-q[bot]" ] || [ "$last_author" = "github-actions[bot]" ] || [ "$last_author" = "llamabot" ] || [ "$last_author" = "google-jules[bot]" ]; then
                 echo "bot_pr" >> /tmp/bot_prs_$REPO_NAME.txt
               fi
             done

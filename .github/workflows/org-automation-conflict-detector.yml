@@ -24,6 +24,8 @@
 #     * dependabot[bot]
 #     * amazon-q[bot]
 #     * github-actions[bot]
+#     * llamabot
+#     * google-jules[bot]
 #
 # Actions on Conflict:
 #   1. Label PR with "automation-conflict"
@@ -93,9 +95,9 @@ jobs:
           echo "🔍 Checking for automation conflicts in PR #$PR_NUMBER"
 
           # Skip if last commit author is a bot
-          # Bot authors: dependabot[bot], amazon-q[bot], github-actions[bot]
+          # Bot authors: dependabot[bot], amazon-q[bot], github-actions[bot], llamabot, google-jules[bot]
           last_commit_author=$(gh api "/repos/$REPO/pulls/$PR_NUMBER/commits" --jq '.[-1].commit.author.name' 2>/dev/null || echo "")
-          if [ "$last_commit_author" = "dependabot[bot]" ] || [ "$last_commit_author" = "amazon-q[bot]" ] || [ "$last_commit_author" = "github-actions[bot]" ]; then
+          if [ "$last_commit_author" = "dependabot[bot]" ] || [ "$last_commit_author" = "amazon-q[bot]" ] || [ "$last_commit_author" = "github-actions[bot]" ] || [ "$last_commit_author" = "llamabot" ] || [ "$last_commit_author" = "google-jules[bot]" ]; then
             echo "⏭️  Skipping: Last commit author is a bot ($last_commit_author)"
             echo "has_conflict=false" >> $GITHUB_OUTPUT
             exit 0
@@ -299,9 +301,9 @@ jobs:
             fi
 
             # Skip if last commit author is a bot
-            # Bot authors: dependabot[bot], amazon-q[bot], github-actions[bot]
+            # Bot authors: dependabot[bot], amazon-q[bot], github-actions[bot], llamabot, google-jules[bot]
             last_commit_author=$(gh api "/repos/$repo/pulls/$pr_number/commits" --jq '.[-1].commit.author.name' 2>/dev/null || echo "")
-            if [ "$last_commit_author" = "dependabot[bot]" ] || [ "$last_commit_author" = "amazon-q[bot]" ] || [ "$last_commit_author" = "github-actions[bot]" ]; then
+            if [ "$last_commit_author" = "dependabot[bot]" ] || [ "$last_commit_author" = "amazon-q[bot]" ] || [ "$last_commit_author" = "github-actions[bot]" ] || [ "$last_commit_author" = "llamabot" ] || [ "$last_commit_author" = "google-jules[bot]" ]; then
               echo "⏭️  Skipping: Last commit author is a bot ($last_commit_author)"
               continue
             fi

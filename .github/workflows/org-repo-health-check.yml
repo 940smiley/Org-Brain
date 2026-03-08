@@ -26,6 +26,8 @@
 #     * dependabot[bot]
 #     * amazon-q[bot]
 #     * github-actions[bot]
+#     * llamabot
+#     * google-jules[bot]
 # =============================================================================
 
 name: "🏥 Org Repository Health Check"
@@ -167,7 +169,7 @@ jobs:
           total_prs=$(echo "$prs" | jq 'length')
 
           # Calculate stale PRs (no activity in STALE_PR_DAYS)
-          # Exclude PRs where last commit is from a bot (dependabot[bot], amazon-q[bot], github-actions[bot])
+          # Exclude PRs where last commit is from a bot (dependabot[bot], amazon-q[bot], github-actions[bot], llamabot, google-jules[bot])
           stale_threshold=$(date -d "-$STALE_PR_DAYS days" -Iseconds 2>/dev/null || date -v-${STALE_PR_DAYS}d -Iseconds 2>/dev/null || echo "2000-01-01T00:00:00Z")
           
           # Get all PRs and filter out those with bot authors as last commit
@@ -187,7 +189,7 @@ jobs:
             if [[ "$pr_updated" < "$stale_threshold" ]]; then
               # Check last commit author
               last_author=$(gh api "/repos/$ORG_NAME/$REPO_NAME/pulls/$pr_number/commits" --jq '.[-1].commit.author.name' 2>/dev/null || echo "")
-              if [ "$last_author" != "dependabot[bot]" ] && [ "$last_author" != "amazon-q[bot]" ] && [ "$last_author" != "github-actions[bot]" ]; then
+              if [ "$last_author" != "dependabot[bot]" ] && [ "$last_author" != "amazon-q[bot]" ] && [ "$last_author" != "github-actions[bot]" ] && [ "$last_author" != "llamabot" ] && [ "$last_author" != "google-jules[bot]" ]; then
                 echo "stale" >> /tmp/stale_prs_count.txt
               fi
             fi
