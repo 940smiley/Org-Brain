@@ -27,9 +27,16 @@
 #
 # Safety Features:
 #   - Skips repositories with "no-autofix" label
+#   - Skips PRs where last commit author is a bot
 #   - Creates PRs instead of direct commits (for review)
 #   - Limits changes per run to prevent overwhelming
 #   - Respects branch protection rules
+#
+# Bot Author Skip Rule:
+#   - Skip if last commit author is a bot:
+#     * dependabot[bot]
+#     * amazon-q[bot]
+#     * github-actions[bot]
 # =============================================================================
 
 name: "🔧 Org Self-Heal"
@@ -207,7 +214,7 @@ jobs:
           
           echo "🔧 Running maintenance on: $REPO_NAME"
           repo_url="https://github.com/$ORG_NAME/$REPO_NAME.git"
-          
+
           # Check if repo has no-autofix label on any open PRs or as repo topic
           repo_topics=$(gh api "/repos/$ORG_NAME/$REPO_NAME" --jq '.topics[]' 2>/dev/null | tr '\n' ',')
           if echo "$repo_topics" | grep -qi "no-autofix"; then
@@ -216,7 +223,35 @@ jobs:
             echo "pr_created=false" >> $GITHUB_OUTPUT
             exit 0
           fi
+
+          # Check for open PRs where last commit is from a bot
+          # Bot authors: dependabot[bot], amazon-q[bot], github-actions[bot]
+          open_prs=$(gh pr list --repo "$ORG_NAME/$REPO_NAME" --state open --limit 100 --json number 2>/dev/null || echo "[]")
+          pr_count=$(echo "$open_prs" | jq 'length')
           
+          if [ "$pr_count" -gt 0 ]; then
+            skip_maintenance=false
+            echo "$open_prs" | jq -c '.[]' | while read -r pr; do
+              pr_num=$(echo "$pr" | jq -r '.number')
+              last_author=$(gh api "/repos/$ORG_NAME/$REPO_NAME/pulls/$pr_num/commits" --jq '.[-1].commit.author.name' 2>/dev/null || echo "")
+              if [ "$last_author" = "dependabot[bot]" ] || [ "$last_author" = "amazon-q[bot]" ] || [ "$last_author" = "github-actions[bot]" ]; then
+                echo "bot_pr" >> /tmp/bot_prs_$REPO_NAME.txt
+              fi
+            done
+            
+            if [ -f /tmp/bot_prs_$REPO_NAME.txt ]; then
+              bot_pr_count=$(wc -l < /tmp/bot_prs_$REPO_NAME.txt)
+              if [ "$bot_pr_count" -gt 0 ]; then
+                echo "⏭️  Skipping: Found $bot_pr_count open PR(s) with bot-authored last commits"
+                echo "changes_made=false" >> $GITHUB_OUTPUT
+                echo "pr_created=false" >> $GITHUB_OUTPUT
+                rm -f /tmp/bot_prs_$REPO_NAME.txt
+                exit 0
+              fi
+            fi
+            rm -f /tmp/bot_prs_$REPO_NAME.txt
+          fi
+
           # Clone the repository (main branch)
           git clone --depth 1 "$repo_url" workdir
           cd workdir

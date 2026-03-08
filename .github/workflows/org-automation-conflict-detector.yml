@@ -17,7 +17,13 @@
 # Conflict Detection Logic:
 #   - Time window: 10 minutes
 #   - If 2+ different bots commit within window → CONFLICT
-#   - Bots monitored: dependabot[bot], amazon-q[bot], and other [bot] accounts
+#   - Bots monitored: dependabot[bot], amazon-q[bot], github-actions[bot]
+#
+# Skip Rule:
+#   - Skip PRs where last commit author is a bot:
+#     * dependabot[bot]
+#     * amazon-q[bot]
+#     * github-actions[bot]
 #
 # Actions on Conflict:
 #   1. Label PR with "automation-conflict"
@@ -85,7 +91,16 @@ jobs:
           #!/bin/bash
           
           echo "🔍 Checking for automation conflicts in PR #$PR_NUMBER"
-          
+
+          # Skip if last commit author is a bot
+          # Bot authors: dependabot[bot], amazon-q[bot], github-actions[bot]
+          last_commit_author=$(gh api "/repos/$REPO/pulls/$PR_NUMBER/commits" --jq '.[-1].commit.author.name' 2>/dev/null || echo "")
+          if [ "$last_commit_author" = "dependabot[bot]" ] || [ "$last_commit_author" = "amazon-q[bot]" ] || [ "$last_commit_author" = "github-actions[bot]" ]; then
+            echo "⏭️  Skipping: Last commit author is a bot ($last_commit_author)"
+            echo "has_conflict=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
           # Get all commits on the PR
           commits=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json commits --jq '.commits[].commit')
           
@@ -274,15 +289,23 @@ jobs:
             echo ""
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo "📝 Checking PR #$pr_number: $pr_title ($repo)"
-            
+
             # Skip if already labeled with automation-conflict
             labels=$(gh pr view "$pr_number" --repo "$repo" --json labels --jq '.labels[].name' 2>/dev/null | tr '\n' ',')
-            
+
             if echo "$labels" | grep -q "automation-conflict"; then
               echo "⏭️  Skipping: Already has automation-conflict label"
               continue
             fi
-            
+
+            # Skip if last commit author is a bot
+            # Bot authors: dependabot[bot], amazon-q[bot], github-actions[bot]
+            last_commit_author=$(gh api "/repos/$repo/pulls/$pr_number/commits" --jq '.[-1].commit.author.name' 2>/dev/null || echo "")
+            if [ "$last_commit_author" = "dependabot[bot]" ] || [ "$last_commit_author" = "amazon-q[bot]" ] || [ "$last_commit_author" = "github-actions[bot]" ]; then
+              echo "⏭️  Skipping: Last commit author is a bot ($last_commit_author)"
+              continue
+            fi
+
             # Get commits and check for bot conflicts
             commit_info=$(gh pr view "$pr_number" --repo "$repo" \
               --json 'commits' \

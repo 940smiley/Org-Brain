@@ -17,6 +17,12 @@
 #   - Security updates: Process immediately (highest priority)
 #   - Minor/Patch updates: Batch by ecosystem (npm, pip, cargo, etc.)
 #   - Major updates: Require manual review (lower priority)
+#
+# Skip Rule:
+#   - Skip if last commit author is a bot:
+#     * dependabot[bot]
+#     * amazon-q[bot]
+#     * github-actions[bot]
 # =============================================================================
 
 name: "📦 Org Dependabot Batch Manager"
@@ -250,7 +256,15 @@ jobs:
             echo "⏭️  Skipping: Draft PR"
             exit 0
           fi
-          
+
+          # Skip if last commit author is a bot
+          # Bot authors: dependabot[bot], amazon-q[bot], github-actions[bot]
+          last_commit_author=$(gh api "/repos/$REPO/pulls/$PR_NUMBER/commits" --jq '.[-1].commit.author.name' 2>/dev/null || echo "")
+          if [ "$last_commit_author" = "dependabot[bot]" ] || [ "$last_commit_author" = "amazon-q[bot]" ] || [ "$last_commit_author" = "github-actions[bot]" ]; then
+            echo "⏭️  Skipping: Last commit author is a bot ($last_commit_author)"
+            exit 0
+          fi
+
           if [ "$mergeable" = "CONFLICTING" ]; then
             echo "⚠️  PR has merge conflicts, adding conflict label"
             if [ "$DRY_RUN" != "true" ]; then
@@ -301,7 +315,15 @@ jobs:
           REPO: ${{ matrix.pr.repo }}
         run: |
           echo "📦 Processing PATCH update: $REPO#$PR_NUMBER"
-          
+
+          # Skip if last commit author is a bot
+          # Bot authors: dependabot[bot], amazon-q[bot], github-actions[bot]
+          last_commit_author=$(gh api "/repos/$REPO/pulls/$PR_NUMBER/commits" --jq '.[-1].commit.author.name' 2>/dev/null || echo "")
+          if [ "$last_commit_author" = "dependabot[bot]" ] || [ "$last_commit_author" = "amazon-q[bot]" ] || [ "$last_commit_author" = "github-actions[bot]" ]; then
+            echo "⏭️  Skipping: Last commit author is a bot ($last_commit_author)"
+            exit 0
+          fi
+
           # Check if PR is mergeable
           mergeable=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json mergeable --jq '.mergeable')
           
@@ -354,7 +376,15 @@ jobs:
           REPO: ${{ matrix.pr.repo }}
         run: |
           echo "📦 Processing MINOR update: $REPO#$PR_NUMBER"
-          
+
+          # Skip if last commit author is a bot
+          # Bot authors: dependabot[bot], amazon-q[bot], github-actions[bot]
+          last_commit_author=$(gh api "/repos/$REPO/pulls/$PR_NUMBER/commits" --jq '.[-1].commit.author.name' 2>/dev/null || echo "")
+          if [ "$last_commit_author" = "dependabot[bot]" ] || [ "$last_commit_author" = "amazon-q[bot]" ] || [ "$last_commit_author" = "github-actions[bot]" ]; then
+            echo "⏭️  Skipping: Last commit author is a bot ($last_commit_author)"
+            exit 0
+          fi
+
           # Check if PR is mergeable
           mergeable=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json mergeable --jq '.mergeable')
           

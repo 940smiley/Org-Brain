@@ -20,6 +20,12 @@
 #   - Security vulnerability alerts
 #   - Test failure rates
 #   - Code coverage trends (if available)
+#
+# Bot Author Skip Rule:
+#   - Skips PRs where last commit author is a bot:
+#     * dependabot[bot]
+#     * amazon-q[bot]
+#     * github-actions[bot]
 # =============================================================================
 
 name: "🏥 Org Repository Health Check"
@@ -159,10 +165,38 @@ jobs:
           # Get PR metrics
           prs=$(gh pr list --repo "$ORG_NAME/$REPO_NAME" --state all --limit 500 --json number,title,updatedAt,closedAt,mergedAt 2>/dev/null || echo "[]")
           total_prs=$(echo "$prs" | jq 'length')
-          
+
           # Calculate stale PRs (no activity in STALE_PR_DAYS)
+          # Exclude PRs where last commit is from a bot (dependabot[bot], amazon-q[bot], github-actions[bot])
           stale_threshold=$(date -d "-$STALE_PR_DAYS days" -Iseconds 2>/dev/null || date -v-${STALE_PR_DAYS}d -Iseconds 2>/dev/null || echo "2000-01-01T00:00:00Z")
-          stale_prs=$(echo "$prs" | jq --arg threshold "$stale_threshold" '[.[] | select(.updatedAt < $threshold and .closedAt == null and .mergedAt == null)] | length')
+          
+          # Get all PRs and filter out those with bot authors as last commit
+          stale_prs=0
+          echo "$prs" | jq -c '.[]' | while read -r pr; do
+            pr_number=$(echo "$pr" | jq -r '.number')
+            pr_updated=$(echo "$pr" | jq -r '.updatedAt')
+            pr_closed=$(echo "$pr" | jq -r '.closedAt')
+            pr_merged=$(echo "$pr" | jq -r '.mergedAt')
+            
+            # Skip if closed or merged
+            if [ "$pr_closed" != "null" ] || [ "$pr_merged" != "null" ]; then
+              continue
+            fi
+            
+            # Check if updated before threshold
+            if [[ "$pr_updated" < "$stale_threshold" ]]; then
+              # Check last commit author
+              last_author=$(gh api "/repos/$ORG_NAME/$REPO_NAME/pulls/$pr_number/commits" --jq '.[-1].commit.author.name' 2>/dev/null || echo "")
+              if [ "$last_author" != "dependabot[bot]" ] && [ "$last_author" != "amazon-q[bot]" ] && [ "$last_author" != "github-actions[bot]" ]; then
+                echo "stale" >> /tmp/stale_prs_count.txt
+              fi
+            fi
+          done
+          
+          if [ -f /tmp/stale_prs_count.txt ]; then
+            stale_prs=$(wc -l < /tmp/stale_prs_count.txt)
+          fi
+          rm -f /tmp/stale_prs_count.txt
           
           # Get issue metrics
           issues=$(gh issue list --repo "$ORG_NAME/$REPO_NAME" --state all --limit 500 --json number,title,updatedAt,closedAt 2>/dev/null || echo "[]")
