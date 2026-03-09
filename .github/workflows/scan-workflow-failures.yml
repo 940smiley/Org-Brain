@@ -34,7 +34,7 @@ on:
         description: "Maximum recent runs to check per repository"
         required: false
         type: number
-        default: "30"
+        default: "50"
       include_org_brain:
         description: "Always include Org-Brain repository"
         required: false
@@ -50,7 +50,6 @@ env:
   OWNER: "940smiley"
   ORG_BRAIN_REPO: "Org-Brain"
   OUTPUT_DIR: "data/workflow-failures"
-  GH_TOKEN: "${{ secrets.ORG_AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}"
 
 jobs:
   # ===========================================================================
@@ -93,12 +92,13 @@ jobs:
               ;;
             all)
               repos_json=$(gh api "/users/$OWNER/repos?per_page=100&type=all" --paginate 2>/dev/null || echo "[]")
-              if [ "$repos_json" != "[]" ]; then
+              if [ "$repos_json" != "[]" ] && [ -n "$repos_json" ]; then
                 scan_list=$(echo "$repos_json" | jq -r '.[].name' | tr '\n' ',' | sed 's/,$//')
               fi
               ;;
           esac
           
+          # Always include Org-Brain if requested
           if [ "$INCLUDE_ORG_BRAIN" = "true" ] && [ -n "$scan_list" ]; then
             if ! echo ",$scan_list," | grep -q ",$ORG_BRAIN_REPO,"; then
               scan_list="$scan_list,$ORG_BRAIN_REPO"
@@ -107,6 +107,7 @@ jobs:
             scan_list="$ORG_BRAIN_REPO"
           fi
           
+          # Remove duplicates
           scan_list=$(echo "$scan_list" | tr ',' '\n' | sort -u | tr '\n' ',' | sed 's/,$//')
           scan_count=$(echo "$scan_list" | tr ',' '\n' | grep -c . || echo "0")
           
@@ -132,6 +133,7 @@ jobs:
     outputs:
       has_failures: "${{ steps.scan.outputs.has_failures }}"
       failure_count: "${{ steps.scan.outputs.failure_count }}"
+      repo_name: "${{ matrix.repo }}"
     steps:
       - name: Checkout Org-Brain
         uses: actions/checkout@v4
@@ -142,65 +144,49 @@ jobs:
           sudo apt-get install -y jq curl
           which gh || (curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && sudo apt-get update && sudo apt-get install -y gh)
 
-      - name: Debug - Show environment
-        run: |
-          echo "OWNER: $OWNER"
-          echo "REPO: ${{ matrix.repo }}"
-          echo "GH_TOKEN set: ${GH_TOKEN:+yes}"
-          echo "GITHUB_TOKEN set: ${GITHUB_TOKEN:+yes}"
-          export GH_TOKEN="${GH_TOKEN:-$GITHUB_TOKEN}"
-          gh auth status 2>&1 || true
-          echo "Testing API call..."
-          gh api "/repos/$OWNER/${{ matrix.repo }}/actions/runs?per_page=5" 2>&1 | head -20 || echo "API call failed"
-
       - name: Scan repository for failures
         id: scan
         env:
           REPO: "${{ matrix.repo }}"
-          MAX_RUNS: "${{ github.event.inputs.max_runs_per_repo || 30 }}"
-          API_TOKEN: "${{ secrets.ORG_AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}"
+          MAX_RUNS: "${{ github.event.inputs.max_runs_per_repo || 50 }}"
+          GH_TOKEN: "${{ secrets.ORG_AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}"
         run: |
           set -e
-          export GH_TOKEN="$API_TOKEN"
-          export GITHUB_TOKEN="$API_TOKEN"
           
           echo "Scanning $OWNER/$REPO for workflow failures..."
           echo "Token available: ${GH_TOKEN:+yes}"
           
           # Get all workflow runs directly
-          echo "Fetching workflow runs..."
           runs_json=$(gh api "/repos/$OWNER/$REPO/actions/runs?per_page=$MAX_RUNS" 2>&1)
           api_exit_code=$?
           
           if [ $api_exit_code -ne 0 ]; then
             echo "API call failed with exit code: $api_exit_code"
             echo "Response: $runs_json"
+            echo '{"repo":"'"$REPO"'","failures":[]}' > /tmp/scan_result_$REPO.json
             echo "has_failures=false" >> $GITHUB_OUTPUT
             echo "failure_count=0" >> $GITHUB_OUTPUT
-            echo "[]" > /tmp/failures_final_$REPO.json
             exit 0
           fi
           
           if [ -z "$runs_json" ] || [ "$runs_json" = "null" ]; then
             echo "Empty response from API"
+            echo '{"repo":"'"$REPO"'","failures":[]}' > /tmp/scan_result_$REPO.json
             echo "has_failures=false" >> $GITHUB_OUTPUT
             echo "failure_count=0" >> $GITHUB_OUTPUT
-            echo "[]" > /tmp/failures_final_$REPO.json
             exit 0
           fi
           
           # Count total runs
           total_runs=$(echo "$runs_json" | jq '.total_count // 0')
-          echo "Total runs available: $total_runs"
-          
           runs_array_length=$(echo "$runs_json" | jq '.workflow_runs | length')
-          echo "Runs in response: $runs_array_length"
+          echo "Total runs: $total_runs, In response: $runs_array_length"
           
           if [ "$runs_array_length" -eq 0 ]; then
             echo "No workflow runs found"
+            echo '{"repo":"'"$REPO"'","failures":[]}' > /tmp/scan_result_$REPO.json
             echo "has_failures=false" >> $GITHUB_OUTPUT
             echo "failure_count=0" >> $GITHUB_OUTPUT
-            echo "[]" > /tmp/failures_final_$REPO.json
             exit 0
           fi
           
@@ -208,8 +194,8 @@ jobs:
           echo "Run conclusions:"
           echo "$runs_json" | jq -r '.workflow_runs[] | "  \(.name): \(.conclusion // "in_progress")"'
           
-          # Filter for failures using jq
-          failures=$(echo "$runs_json" | jq '[.workflow_runs[] | select(.conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "cancelled") | {
+          # Filter for failures using jq - THIS IS THE KEY FIX
+          failures=$(echo "$runs_json" | jq -c '[.workflow_runs[] | select(.conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "cancelled") | {
             workflow: .name,
             path: .path,
             run_id: .id,
@@ -229,14 +215,17 @@ jobs:
           echo ""
           echo "=== FAILURE COUNT: $failure_count ==="
           
-          # Show failures if any
           if [ "$failure_count" -gt 0 ]; then
             echo "Failures found:"
-            echo "$failures" | jq -r '.[] | "  \(.workflow): \(.conclusion) - \(.url)"'
+            echo "$failures" | jq -r '.[] | "  \(.workflow): \(.conclusion)"'
           fi
           
-          # Save results
-          echo "$failures" > /tmp/failures_final_$REPO.json
+          # Write result as proper JSON object with repo name
+          echo '{"repo":"'"$REPO"'","failures":'"$failures"'}' > /tmp/scan_result_$REPO.json
+          
+          # Verify file was written
+          echo "Written to /tmp/scan_result_$REPO.json:"
+          cat /tmp/scan_result_$REPO.json
           
           if [ "$failure_count" -gt 0 ]; then
             echo "has_failures=true" >> $GITHUB_OUTPUT
@@ -272,35 +261,57 @@ jobs:
         id: aggregate
         run: |
           set -e
+          
           scan_list=$(cat /tmp/scan_list.txt 2>/dev/null || echo "${{ needs.discover-repos.outputs.scan_list }}")
+          mode="${{ needs.discover-repos.outputs.mode }}"
           
           echo "Aggregating failures for: $scan_list"
+          echo "Mode: $mode"
           
-          # Build repositories array
-          repos_array="[]"
+          # Initialize arrays
+          all_repos="[]"
+          total_failures=0
+          repos_with_failures=0
+          
+          # Process each repo from scan list
           for repo in $(echo "$scan_list" | tr ',' ' '); do
             [ -z "$repo" ] && continue
-            failures_file="/tmp/failures_final_$repo.json"
-            if [ -f "$failures_file" ]; then
-              failures=$(cat "$failures_file")
+            
+            result_file="/tmp/scan_result_$repo.json"
+            echo "Checking: $result_file"
+            
+            if [ -f "$result_file" ]; then
+              echo "  Found result file"
+              repo_name=$(jq -r '.repo' "$result_file")
+              repo_failures=$(jq -c '.failures' "$result_file")
+              failure_count=$(echo "$repo_failures" | jq 'length')
+              
+              echo "  Repo: $repo_name, Failures: $failure_count"
+              
+              # Add to total
+              total_failures=$((total_failures + failure_count))
+              if [ "$failure_count" -gt 0 ]; then
+                repos_with_failures=$((repos_with_failures + 1))
+              fi
+              
+              # Add to repositories array
+              all_repos=$(echo "$all_repos" | jq --arg name "$repo_name" --argjson failures "$repo_failures" '. + [{name:$name,failures:$failures}]')
             else
-              failures="[]"
+              echo "  No result file found, using empty"
+              all_repos=$(echo "$all_repos" | jq --arg name "$repo" '. + [{name:$name,failures:[]}]')
             fi
-            repos_array=$(echo "$repos_array" | jq --arg name "$repo" --argjson failures "$failures" '. + [{name:$name,failures:$failures}]')
           done
           
-          # Calculate totals
-          total_failures=$(echo "$repos_array" | jq '[.[].failures | length] | add // 0')
-          repos_with_failures=$(echo "$repos_array" | jq '[.[] | select(.failures | length > 0)] | length')
-          repos_scanned=$(echo "$repos_array" | jq 'length')
+          repos_scanned=$(echo "$all_repos" | jq 'length')
           
-          echo "Total failures: $total_failures"
-          echo "Repos with failures: $repos_with_failures"
-          echo "Repos scanned: $repos_scanned"
+          echo ""
+          echo "=== AGGREGATION COMPLETE ==="
+          echo "Total Failures: $total_failures"
+          echo "Repos with Failures: $repos_with_failures"
+          echo "Repos Scanned: $repos_scanned"
           
           # Create final JSON
           scanned_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          mode="${{ needs.discover-repos.outputs.mode }}"
           
           jq -n \
             --arg scanned_at "$scanned_at" \
@@ -308,8 +319,13 @@ jobs:
             --argjson total_failures "$total_failures" \
             --argjson repos_with_failures "$repos_with_failures" \
             --argjson repos_scanned "$repos_scanned" \
-            --argjson repositories "$repos_array" \
+            --argjson repositories "$all_repos" \
             '{scanned_at:$scanned_at,mode:$mode,scan_summary:{total_failures:$total_failures,repos_with_failures:$repos_with_failures,repos_scanned:$repos_scanned},repositories:$repositories}' > $OUTPUT_DIR/failures.json
+          
+          echo ""
+          echo "Written to $OUTPUT_DIR/failures.json"
+          echo "File contents:"
+          cat $OUTPUT_DIR/failures.json
           
           echo "total_failures=$total_failures" >> $GITHUB_OUTPUT
           echo "repos_with_failures=$repos_with_failures" >> $GITHUB_OUTPUT
@@ -317,15 +333,20 @@ jobs:
       - name: Generate Markdown summary
         run: |
           set -e
+          
           scanned_at=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
           mode="${{ needs.discover-repos.outputs.mode }}"
+          
+          if [ ! -f "$OUTPUT_DIR/failures.json" ]; then
+            echo "ERROR: failures.json not found!"
+            exit 1
+          fi
           
           total_failures=$(jq '.scan_summary.total_failures' $OUTPUT_DIR/failures.json)
           repos_with_failures=$(jq '.scan_summary.repos_with_failures' $OUTPUT_DIR/failures.json)
           repos_scanned=$(jq '.scan_summary.repos_scanned' $OUTPUT_DIR/failures.json)
           clean_repos=$((repos_scanned - repos_with_failures))
           
-          # Generate markdown using jq for the heavy lifting
           {
             echo "# Workflow Failures Report"
             echo ""
@@ -350,26 +371,20 @@ jobs:
             
             if [ "$total_failures" -eq 0 ]; then
               echo "**No workflow failures detected!** All workflows are running successfully."
-              echo ""
-              echo "Note: This might mean:"
-              echo "- All workflows completed successfully"
-              echo "- Workflows are still in progress (not yet concluded)"
-              echo "- No workflow runs in the last ${{ github.event.inputs.max_runs_per_repo || 30 }} runs"
             else
-              # Use jq to generate the failure sections
               jq -r '
                 .repositories[] | 
                 select(.failures | length > 0) | 
-                "### \(.name) (\(.failures | length) failures)\n\n" + 
+                "### " + .name + " (" + (.failures | length | tostring) + " failures)\n\n" + 
                 (.failures[] | 
-                  "#### \(.workflow)\n\n" +
+                  "#### " + .workflow + "\n\n" +
                   "| Property | Value |\n" +
                   "|----------|-------|\n" +
-                  "| **Run ID** | \(.run_id) |\n" +
-                  "| **Status** | \(.conclusion) |\n" +
-                  "| **Time** | \(.timestamp) |\n" +
-                  "| **URL** | [View Run](\(.url)) |\n\n" +
-                  "**Suggestion:** \(.suggestion)\n"
+                  "| **Run ID** | " + (.run_id | tostring) + " |\n" +
+                  "| **Status** | " + .conclusion + " |\n" +
+                  "| **Time** | " + .timestamp + " |\n" +
+                  "| **URL** | [View Run](" + .url + ") |\n\n" +
+                  "**Suggestion:** " + .suggestion + "\n"
                 )
               ' $OUTPUT_DIR/failures.json
             fi
@@ -394,7 +409,6 @@ jobs:
           } > $OUTPUT_DIR/summary.md
           
           echo "Generated summary.md"
-          cat $OUTPUT_DIR/summary.md
 
       - name: Commit and push reports
         run: |
