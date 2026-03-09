@@ -1,144 +1,90 @@
 /**
  * =============================================================================
- * ORG BRAIN DASHBOARD CONFIGURATION
+ * ORG BRAIN DASHBOARD CONFIGURATION (ENHANCED)
  * =============================================================================
- * 
- * This file contains all configurable settings for the Org Brain dashboard.
- * Modify these values to customize the dashboard behavior.
  */
 
 const CONFIG = {
     // =========================================================================
     // ORGANIZATION SETTINGS
     // =========================================================================
-    
-    /**
-     * GitHub organization name
-     * This is used to fetch organization data and display in the header
-     */
+
     orgName: '940smiley',
-    
-    /**
-     * Organization display name (shown in header)
-     * If empty, uses orgName
-     */
-    orgDisplayName: '',
-    
+    orgDisplayName: 'Org Brain',
+
     // =========================================================================
     // DATA SETTINGS
     // =========================================================================
-    
+
     /**
-     * Path to repository data JSON file
-     * Can be relative or absolute URL
+     * Load repos from ../data/repos.json when deployed to dashboard subdirectory
+     * Falls back to data/repos.json for local development
      */
-    dataPath: 'repos.json',
-    
+    dataPath: typeof window !== 'undefined' && window.location.pathname.includes( '/dashboard/' )
+        ? '../data/repos.json'
+        : 'data/repos.json',
+
     /**
-     * Auto-refresh interval in milliseconds
-     * Set to 0 to disable auto-refresh
+     * Auto-refresh every 5 minutes
      */
-    refreshInterval: 300000, // 5 minutes
-    
-    /**
-     * Enable debug mode (shows console logs)
-     */
+    refreshInterval: 300000,
+
     debug: false,
-    
+
     // =========================================================================
     // DISPLAY SETTINGS
     // =========================================================================
-    
-    /**
-     * Default number of repositories to show per page
-     */
+
     itemsPerPage: 20,
-    
-    /**
-     * Available page size options
-     */
-    pageSizeOptions: [10, 20, 50, 100],
-    
-    /**
-     * Default sort field
-     * Options: 'name', 'stars', 'forks', 'issues', 'updated', 'health'
-     */
+    pageSizeOptions: [ 10, 20, 50, 100 ],
+
     defaultSortField: 'health',
-    
-    /**
-     * Default sort order
-     * Options: 'asc', 'desc'
-     */
     defaultSortOrder: 'desc',
-    
-    /**
-     * Show archived repositories by default
-     */
+
     showArchivedByDefault: false,
-    
+
     // =========================================================================
-    // FEATURE FLAGS
+    // FEATURE FLAGS (EXPANDED)
     // =========================================================================
-    
-    /**
-     * Enable repository search
-     */
+
     enableSearch: true,
-    
-    /**
-     * Enable filtering by language
-     */
     enableLanguageFilter: true,
-    
-    /**
-     * Enable filtering by health status
-     */
     enableHealthFilter: true,
-    
-    /**
-     * Enable sorting
-     */
     enableSorting: true,
-    
-    /**
-     * Enable pagination
-     */
     enablePagination: true,
-    
+
     /**
      * Enable workflow trigger buttons
-     * Requires proper authentication setup
+     * You requested this ON.
      */
     enableWorkflowTriggers: true,
-    
+
     /**
-     * Enable workflow installation
-     * Allows installing workflows to repositories
+     * NEW: Show workflow status badges
      */
-    enableWorkflowInstallation: true,
-    
+    enableWorkflowStatusBadges: true,
+
     /**
-     * Enable code analysis
+     * NEW: Show PR/Issue counts
      */
-    enableCodeAnalysis: true,
-    
+    enableRepoActivityStats: true,
+
+    /**
+     * NEW: Show last workflow run timestamp
+     */
+    enableLastWorkflowRun: true,
+
     // =========================================================================
     // HEALTH SCORE CONFIGURATION
     // =========================================================================
-    
-    /**
-     * Health score thresholds
-     */
+
     healthThresholds: {
-        healthy: 80,    // >= 80: Green
-        warning: 60,    // >= 60: Yellow
-        unhealthy: 40,  // >= 40: Orange
-        critical: 0     // < 40: Red
+        healthy: 80,
+        warning: 60,
+        unhealthy: 40,
+        critical: 0
     },
-    
-    /**
-     * Health status labels and colors
-     */
+
     healthStatusConfig: {
         healthy: {
             label: 'Healthy',
@@ -161,54 +107,34 @@ const CONFIG = {
             bgColor: 'rgba(239, 68, 68, 0.1)'
         }
     },
-    
+
     // =========================================================================
     // UI CUSTOMIZATION
     // =========================================================================
-    
-    /**
-     * Dashboard title
-     */
+
     dashboardTitle: 'Org Brain',
-    
-    /**
-     * Dashboard subtitle/tagline
-     */
     dashboardSubtitle: 'Organization Command Center',
-    
-    /**
-     * Show repository statistics in header
-     */
+
     showHeaderStats: true,
-    
-    /**
-     * Footer text
-     */
+
     footerText: 'Powered by Org Brain',
-    
+
     /**
-     * Custom CSS file path (optional)
-     * Set to null to use only built-in styles
+     * Optional custom CSS
      */
     customCssPath: null,
-    
+
     // =========================================================================
-    // API ENDPOINTS (for future workflow triggers)
+    // API ENDPOINTS (WORKFLOW TRIGGERS ENABLED)
     // =========================================================================
-    
-    /**
-     * GitHub API base URL
-     */
+
     githubApiBase: 'https://api.github.com',
-    
-    /**
-     * Workflow dispatch endpoint template
-     * {owner} and {repo} will be replaced
-     */
-    workflowDispatchTemplate: '/repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches'
+
+    workflowDispatchTemplate:
+        '/repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches'
 };
 
-// Export for use in other modules
-if (typeof module !== 'undefined' && module.exports) {
+if ( typeof module !== 'undefined' && module.exports )
+{
     module.exports = CONFIG;
 }

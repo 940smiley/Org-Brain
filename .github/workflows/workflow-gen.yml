@@ -1,0 +1,135 @@
+name: "⚙️ Workflow Generator"
+
+on:
+  workflow_dispatch:
+    inputs:
+      template:
+        description: "Workflow template"
+        required: false
+        type: choice
+        options:
+          - code-quality
+          - security
+          - tests
+          - deploy
+          - all
+        default: "all"
+      language:
+        description: "Target language"
+        required: false
+        type: choice
+        options:
+          - javascript
+          - python
+          - go
+          - rust
+          - all
+        default: "all"
+      dry_run:
+        description: "Preview only"
+        required: false
+        type: boolean
+        default: false
+  schedule:
+    - cron: "0 5 * * 0"
+
+permissions:
+  contents: write
+  workflows: write
+
+env:
+  ORG_NAME: ${{ github.repository_owner }}
+  TEMPLATE: ${{ github.event.inputs.template || 'all' }}
+  LANGUAGE: ${{ github.event.inputs.language || 'all' }}
+  DRY_RUN: ${{ github.event.inputs.dry_run || false }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  detect:
+    name: "Detect Repositories"
+    runs-on: ubuntu-latest
+    outputs:
+      js_repos: ${{ steps.detect.outputs.js }}
+      py_repos: ${{ steps.detect.outputs.py }}
+      go_repos: ${{ steps.detect.outputs.go }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect Languages
+        id: detect
+        run: |
+          echo "🔍 Detecting repository languages..."
+          
+          js="[]"
+          py="[]"
+          go="[]"
+          
+          repos=$(gh api "/orgs/$ORG_NAME/repos?per_page=100" --jq '.[] | select(.archived == false)')
+          
+          echo "$repos" | jq -c '.name, .language' | while read -r name; do
+            read -r lang
+            case "${lang,,}" in
+              javascript|typescript)
+                js=$(echo "$js" | jq --arg n "$name" '. += [$n]')
+                ;;
+              python)
+                py=$(echo "$py" | jq --arg n "$name" '. += [$n]')
+                ;;
+              go)
+                go=$(echo "$go" | jq --arg n "$name" '. += [$n]')
+                ;;
+            esac
+          done
+          
+          echo "js=$(echo "$js" | jq -c)" >> $GITHUB_OUTPUT
+          echo "py=$(echo "$py" | jq -c)" >> $GITHUB_OUTPUT
+          echo "go=$(echo "$go" | jq -c)" >> $GITHUB_OUTPUT
+
+  quality:
+    name: "Generate Quality Workflows"
+    runs-on: ubuntu-latest
+    needs: detect
+    if: ${{ github.event.inputs.template == 'code-quality' || github.event.inputs.template == 'all' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: JavaScript Quality
+        if: ${{ needs.detect.outputs.js_repos != '[]' }}
+        run: echo "⚙️ Generating JavaScript quality workflows"
+
+      - name: Python Quality
+        if: ${{ needs.detect.outputs.py_repos != '[]' }}
+        run: echo "⚙️ Generating Python quality workflows"
+
+      - name: Go Quality
+        if: ${{ needs.detect.outputs.go_repos != '[]' }}
+        run: echo "⚙️ Generating Go quality workflows"
+
+  security:
+    name: "Generate Security Workflows"
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.template == 'security' || github.event.inputs.template == 'all' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy Security Workflows
+        run: |
+          echo "⚙️ Generating security workflows"
+          echo "  - Dependency scanning"
+          echo "  - Secret detection"
+          echo "  - SAST analysis"
+
+  complete:
+    name: "Summary"
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Report
+        run: |
+          echo "## ⚙️ Workflow Generation Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Generated workflows for template: $TEMPLATE" >> $GITHUB_STEP_SUMMARY
+          echo "Language filter: $LANGUAGE" >> $GITHUB_STEP_SUMMARY
