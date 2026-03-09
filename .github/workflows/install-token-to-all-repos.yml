@@ -1,16 +1,7 @@
 # =============================================================================
-# INSTALL TOKEN TO ALL REPOS - Bulk Secret Installation (FIXED)
+# INSTALL TOKEN TO ALL REPOS - Bulk Secret Installation
 # =============================================================================
 # Purpose: Install ORG_AUTOMATION_TOKEN secret to all repositories under 940smiley
-#
-# FIXED ISSUES:
-# - Token input now correctly named 'pat' and passed to all steps
-# - Hard fail if token is missing
-# - Debug output added at every step
-# - Encryption step now runs correctly
-# - Repo loop now executes properly
-# - Detailed logging per repository
-# - Summary report generated
 #
 # Usage:
 #   1. Go to Actions → Install Token to All Repos
@@ -47,13 +38,10 @@ env:
   OWNER: "940smiley"
   SECRET_NAME: "ORG_AUTOMATION_TOKEN"
   OUTPUT_DIR: "data/token-install"
-  # CRITICAL FIX: Pass token to ALL steps via environment
+  # CRITICAL: Pass token to ALL steps via environment variable
   ORG_AUTOMATION_TOKEN: ${{ inputs.pat }}
 
 jobs:
-  # ===========================================================================
-  # INSTALL SECRETS TO ALL REPOS
-  # ===========================================================================
   install-secrets:
     name: "Install Secrets"
     runs-on: ubuntu-latest
@@ -84,14 +72,13 @@ jobs:
           echo "OUTPUT_DIR: $OUTPUT_DIR"
           echo "ORG_AUTOMATION_TOKEN set: ${ORG_AUTOMATION_TOKEN:+YES}"
           echo "ORG_AUTOMATION_TOKEN length: ${#ORG_AUTOMATION_TOKEN}"
-          echo "inputs.pat length: ${{ inputs.pat }}"
-          echo "===================================="
+          echo "====================================="
 
       - name: VALIDATE - Check token received
         run: |
           echo "=== VALIDATION: Checking token ==="
           
-          # CRITICAL FIX: Hard fail if token is missing
+          # HARD FAIL if token is missing
           if [ -z "$ORG_AUTOMATION_TOKEN" ]; then
             echo "ERROR: No token received!"
             echo "The ORG_AUTOMATION_TOKEN environment variable is empty."
@@ -99,22 +86,15 @@ jobs:
             exit 1
           fi
           
-          # Validate token format
-          if [[ ! "$ORG_AUTOMATION_TOKEN" =~ ^gh[pousr]_ ]] && [[ ! "$ORG_AUTOMATION_TOKEN" =~ ^github_pat_ ]]; then
-            echo "WARNING: Token does not appear to be a valid GitHub PAT"
-            echo "Expected format: ghp_*, gho_*, ghu_*, ghs_*, ghr_*, or github_pat_*"
-          fi
-          
           echo "Token validation passed"
           echo "Token length: ${#ORG_AUTOMATION_TOKEN} characters"
 
-      - name: VALIDATE - Check GitHub API access
+      - name: PREFLIGHT - Check GitHub API access
         env:
           GH_TOKEN: ${{ inputs.pat }}
         run: |
-          echo "=== VALIDATION: Checking GitHub API access ==="
+          echo "=== PREFLIGHT: Checking GitHub API access ==="
           
-          # Test API access
           user_login=$(gh api user --jq '.login' 2>&1)
           api_exit_code=$?
           
@@ -126,22 +106,14 @@ jobs:
           
           echo "API access confirmed"
           echo "Authenticated as: $user_login"
-          
-          # Verify we can access repos
-          repo_count=$(gh api "/users/$OWNER/repos?per_page=1" --jq 'length' 2>&1 || echo "0")
-          echo "Can access $OWNER repos: $repo_count"
 
       - name: Enumerate repositories
         id: enumerate
         env:
           GH_TOKEN: ${{ inputs.pat }}
         run: |
-          set -e
-          
           echo "=== ENUMERATION: Fetching repositories ==="
-          echo "Owner: $OWNER"
           
-          # Fetch all repositories
           repos_json=$(gh api "/users/$OWNER/repos?per_page=100&type=all" --paginate 2>/dev/null || echo "[]")
           
           if [ "$repos_json" = "[]" ] || [ -z "$repos_json" ]; then
@@ -151,7 +123,7 @@ jobs:
             exit 0
           fi
           
-          # Filter out archived repos and extract names
+          # Filter out archived repos
           active_repos=$(echo "$repos_json" | jq -c '[.[] | select(.archived == false) | {name: .name, private: .private}]')
           repo_count=$(echo "$active_repos" | jq 'length')
           
@@ -165,8 +137,6 @@ jobs:
           
           echo "repos=$active_repos" >> $GITHUB_OUTPUT
           echo "count=$repo_count" >> $GITHUB_OUTPUT
-          
-          # Save for logging
           echo "$active_repos" > $OUTPUT_DIR/repos.json
 
       - name: Install secrets to repositories
@@ -176,14 +146,11 @@ jobs:
           GH_TOKEN: ${{ inputs.pat }}
           SKIP_EXISTING: "${{ github.event.inputs.skip_existing || 'false' }}"
         run: |
-          set -e
-          
           echo "=== INSTALLATION: Installing secrets ==="
           echo "Secret Name: $SECRET_NAME"
           echo "Skip Existing: $SKIP_EXISTING"
           echo ""
           
-          # Read repos from file
           repos="${{ steps.enumerate.outputs.repos }}"
           
           success_count=0
@@ -194,7 +161,6 @@ jobs:
           echo "Total repositories to process: $total_count"
           echo ""
           
-          # Clear previous results
           > $OUTPUT_DIR/results.jsonl
           
           # Process each repository
@@ -202,6 +168,7 @@ jobs:
             repo_name=$(echo "$repo_info" | jq -r '.name')
             is_private=$(echo "$repo_info" | jq -r '.private')
             
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo "Processing: $repo_name (private: $is_private)"
             
             # Create log file for this repo
@@ -211,8 +178,7 @@ jobs:
             
             # Fetch repo's public key for encryption
             echo "  Fetching public key..." | tee -a "$log_file"
-            key_response=$(gh api \
-              "/repos/$OWNER/$repo_name/actions/secrets/public-key" 2>&1) || true
+            key_response=$(gh api "/repos/$OWNER/$repo_name/actions/secrets/public-key" 2>&1) || true
             
             if ! echo "$key_response" | jq -e '.key_id' > /dev/null 2>&1; then
               echo "  Failed to fetch public key: $key_response" | tee -a "$log_file"
@@ -230,8 +196,7 @@ jobs:
             # Check if secret already exists
             if [ "$SKIP_EXISTING" = "true" ]; then
               echo "  Checking if secret exists..." | tee -a "$log_file"
-              check_response=$(gh api \
-                "/repos/$OWNER/$repo_name/actions/secrets/$SECRET_NAME" 2>&1 || true)
+              check_response=$(gh api "/repos/$OWNER/$repo_name/actions/secrets/$SECRET_NAME" 2>&1 || true)
               
               if echo "$check_response" | jq -e '.name' > /dev/null 2>&1; then
                 echo "  Secret already exists, skipping" | tee -a "$log_file"
@@ -242,7 +207,7 @@ jobs:
               fi
             fi
             
-            # Encrypt the token using Python/PyNaCl
+            # Encrypt the token using Python/PyNaCl (libsodium)
             echo "  Encrypting token..." | tee -a "$log_file"
             encrypted_value=$(python3 << PYEOF
 import base64
@@ -278,11 +243,7 @@ PYEOF
             
             # Upload encrypted secret
             echo "  Uploading secret..." | tee -a "$log_file"
-            upload_response=$(gh api \
-              -X PUT \
-              "/repos/$OWNER/$repo_name/actions/secrets/$SECRET_NAME" \
-              -f encrypted_value="$encrypted_value" \
-              -f key_id="$key_id" 2>&1) || true
+            upload_response=$(gh api -X PUT "/repos/$OWNER/$repo_name/actions/secrets/$SECRET_NAME" -f encrypted_value="$encrypted_value" -f key_id="$key_id" 2>&1) || true
             
             if [ -z "$upload_response" ]; then
               echo "  Successfully installed secret" | tee -a "$log_file"
@@ -313,7 +274,6 @@ PYEOF
           echo "  Failed: $failure_count"
           echo "  Skipped: $skip_count"
           
-          # Export for GitHub Actions
           echo "success_count=$success_count" >> $GITHUB_OUTPUT
           echo "failure_count=$failure_count" >> $GITHUB_OUTPUT
           echo "skip_count=$skip_count" >> $GITHUB_OUTPUT
@@ -329,42 +289,32 @@ PYEOF
       - name: Generate summary report
         if: always()
         run: |
-          echo "=== REPORT: Generating summary ==="
-          
           cat << EOF > $OUTPUT_DIR/summary.md
-          # Token Installation Report
+# Token Installation Report
 
-          **Generated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          **Owner:** ${{ github.event.inputs.owner || env.OWNER }}
-          **Secret Name:** ${{ env.SECRET_NAME }}
+**Generated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+**Owner:** ${{ github.event.inputs.owner || env.OWNER }}
+**Secret Name:** ${{ env.SECRET_NAME }}
 
-          ---
+---
 
-          ## Summary
+## Summary
 
-          | Metric | Count |
-          |--------|-------|
-          | Total Repositories | ${{ steps.enumerate.outputs.count || 0 }} |
-          | Successful | ${{ steps.install.outputs.success_count || 0 }} |
-          | Failed | ${{ steps.install.outputs.failure_count || 0 }} |
-          | Skipped | ${{ steps.install.outputs.skip_count || 0 }} |
+| Metric | Count |
+|--------|-------|
+| Total Repositories | ${{ steps.enumerate.outputs.count || 0 }} |
+| Successful | ${{ steps.install.outputs.success_count || 0 }} |
+| Failed | ${{ steps.install.outputs.failure_count || 0 }} |
+| Skipped | ${{ steps.install.outputs.skip_count || 0 }} |
 
-          ---
+---
 
-          ## Detailed Results
+## Detailed Results
 
-          EOF
-
-          if [ -f $OUTPUT_DIR/results.jsonl ]; then
-            echo '```json' >> $OUTPUT_DIR/summary.md
-            cat $OUTPUT_DIR/results.jsonl | jq -s '.' >> $OUTPUT_DIR/summary.md
-            echo '```' >> $OUTPUT_DIR/summary.md
-          else
-            echo "No results available" >> $OUTPUT_DIR/summary.md
-          fi
-          
-          echo ""
-          echo "Report generated: $OUTPUT_DIR/summary.md"
+\`\`\`json
+$(cat $OUTPUT_DIR/results.jsonl | jq -s '.' 2>/dev/null || echo "[]")
+\`\`\`
+EOF
           cat $OUTPUT_DIR/summary.md
 
       - name: Commit results
@@ -379,7 +329,6 @@ PYEOF
             git add $OUTPUT_DIR/
             git commit -m "chore: record token installation results"
             git push
-            echo "Committed installation results"
           fi
 
       - name: Upload results as artifact
@@ -394,19 +343,19 @@ PYEOF
         if: always()
         run: |
           cat << EOF >> $GITHUB_STEP_SUMMARY
-          # Token Installation Complete
+# Token Installation Complete
 
-          ## Summary
+## Summary
 
-          | Metric | Count |
-          |--------|-------|
-          | Total Repositories | ${{ steps.enumerate.outputs.count || 0 }} |
-          | Successful | ${{ steps.install.outputs.success_count || 0 }} |
-          | Failed | ${{ steps.install.outputs.failure_count || 0 }} |
-          | Skipped | ${{ steps.install.outputs.skip_count || 0 }} |
+| Metric | Count |
+|--------|-------|
+| Total Repositories | ${{ steps.enumerate.outputs.count || 0 }} |
+| Successful | ${{ steps.install.outputs.success_count || 0 }} |
+| Failed | ${{ steps.install.outputs.failure_count || 0 }} |
+| Skipped | ${{ steps.install.outputs.skip_count || 0 }} |
 
-          ## Results
+## Results
 
-          - **Detailed Report:** \`data/token-install/summary.md\`
-          - **Artifact:** Download from workflow run
-          EOF
+- **Detailed Report:** \`data/token-install/summary.md\`
+- **Artifact:** Download from workflow run
+EOF
