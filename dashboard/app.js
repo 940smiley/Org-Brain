@@ -185,6 +185,11 @@ function setupEventListeners() {
         failuresPanelBtn.addEventListener('click', toggleFailuresPanel);
     }
 
+    const installTokenBtn = document.getElementById('install-token-btn');
+    if (installTokenBtn) {
+        installTokenBtn.addEventListener('click', showInstallTokenModal);
+    }
+
     setupPaginationListeners();
 
     if (CONFIG.refreshInterval > 0) {
@@ -1210,6 +1215,117 @@ function bulkAnalyze() {
         return;
     }
     showNotification(`Bulk analysis coming soon for ${AppState.selectedRepos.size} repositories`, 'info');
+}
+
+// =============================================================================
+// TOKEN INSTALLATION
+// =============================================================================
+
+/**
+ * Show modal to install automation token to all repos
+ */
+function showInstallTokenModal() {
+    const content = `
+        <div class="token-install-modal">
+            <div class="token-warning">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    <path d="M12 8v4"></path>
+                    <path d="M12 16h.01"></path>
+                </svg>
+                <h4>Security Notice</h4>
+                <p>This will install the ORG_AUTOMATION_TOKEN secret to ALL repositories under your account.</p>
+                <ul>
+                    <li>The token will be encrypted before upload</li>
+                    <li>The token will NOT be stored or logged</li>
+                    <li>Archived repositories will be skipped</li>
+                    <li>You need a Fine-Grained PAT with repo and admin:org scopes</li>
+                </ul>
+            </div>
+            
+            <div class="token-input-group">
+                <label for="automation-token-input">Fine-Grained PAT:</label>
+                <input type="password" id="automation-token-input" placeholder="ghp_..." autocomplete="off">
+                <p class="token-help">
+                    Create a token with: <code>repo</code>, <code>admin:org</code>, and <code>workflow</code> scopes
+                </p>
+            </div>
+            
+            <div class="token-options">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="skip-existing-token">
+                    Skip repositories that already have the secret
+                </label>
+            </div>
+        </div>
+        
+        <div class="analysis-actions">
+            <button onclick="installTokenToAllRepos()" class="btn btn-primary">
+                🔐 Install to All Repos
+            </button>
+            <button onclick="closeModal()" class="btn btn-secondary">Cancel</button>
+        </div>
+    `;
+    
+    showModal('Install Automation Token', content);
+}
+
+/**
+ * Install automation token to all repositories
+ * Dispatches the install-token-to-all-repos workflow
+ */
+async function installTokenToAllRepos() {
+    const tokenInput = document.getElementById('automation-token-input');
+    const skipExisting = document.getElementById('skip-existing-token');
+    
+    if (!tokenInput || !tokenInput.value) {
+        showNotification('Please enter your Fine-Grained PAT', 'error');
+        return;
+    }
+    
+    const automationToken = tokenInput.value;
+    const skipExistingValue = skipExisting ? skipExisting.checked : false;
+    
+    // Validate token format (basic check)
+    if (!automationToken.startsWith('ghp_') && !automationToken.startsWith('github_pat_')) {
+        showNotification('Token should start with ghp_ or github_pat_', 'warning');
+    }
+    
+    closeModal();
+    
+    const headers = getGitHubHeaders();
+    
+    showNotification('Starting token installation to all repositories...', 'info');
+    
+    try {
+        const response = await fetch(
+            `https://api.github.com/repos/${CONFIG.orgName}/Org-Brain/actions/workflows/install-token-to-all-repos.yml/dispatches`,
+            {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({
+                    ref: 'main',
+                    inputs: {
+                        automation_token: automationToken,
+                        owner: CONFIG.orgName,
+                        skip_existing: skipExistingValue.toString()
+                    }
+                })
+            }
+        );
+        
+        if (response.ok) {
+            showNotification(
+                `✅ Token installation started!\n\nThe workflow will install ORG_AUTOMATION_TOKEN to all repositories.\n\nCheck the Actions tab for progress.`,
+                'success'
+            );
+        } else {
+            const error = await response.json();
+            showNotification(`❌ Failed to start installation: ${error.message}`, 'error');
+        }
+    } catch (error) {
+        showNotification(`❌ Error starting installation: ${error.message}`, 'error');
+    }
 }
 
 // =============================================================================
