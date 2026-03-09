@@ -35,7 +35,7 @@ const CONFIG = {
     // DISPLAY SETTINGS
     // =========================================================================
 
-    itemsPerPage: 20,
+    itemsPerPage: 25,
     pageSizeOptions: [ 10, 20, 50, 100 ],
 
     defaultSortField: 'health',
