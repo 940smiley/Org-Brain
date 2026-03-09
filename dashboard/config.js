@@ -60,6 +60,17 @@ const CONFIG = {
     enableWorkflowTriggers: true,
 
     /**
+     * Enable workflow installation
+     * Allows installing workflows to repositories
+     */
+    enableWorkflowInstallation: true,
+
+    /**
+     * Enable code analysis
+     */
+    enableCodeAnalysis: true,
+
+    /**
      * NEW: Show workflow status badges
      */
     enableWorkflowStatusBadges: true,

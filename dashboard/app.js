@@ -728,15 +728,9 @@ function createRepoCard(repo) {
                     <a href="${repo.html_url}" target="_blank" rel="noopener" class="btn btn-sm">
                         View Repo
                     </a>
-                    ${repo.homepage ? `
-                        <a href="${repo.homepage}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                                <polyline points="15 3 21 3 21 9"></polyline>
-                                <line x1="10" y1="14" x2="21" y2="3"></line>
-                            </svg>
-                        </a>
-                    ` : ''}
+                    ${CONFIG.enableCodeAnalysis ? `<button onclick="showAnalysisModal('${CONFIG.orgName}', '${repo.name}')" class="btn btn-sm btn-outline" title="Analyze Code">🔍 Analyze</button>` : ''}
+                    ${CONFIG.enableWorkflowTriggers ? `<button onclick="showWorkflowTriggerModal('${CONFIG.orgName}', '${repo.name}')" class="btn btn-sm btn-outline" title="Run Workflows">▶️ Run</button>` : ''}
+                    ${CONFIG.enableWorkflowInstallation ? `<button onclick="showWorkflowInstallModal('${CONFIG.orgName}', '${repo.name}')" class="btn btn-sm btn-outline" title="Install Workflows">📥 Install</button>` : ''}
                 </div>
             </div>
             
@@ -965,6 +959,125 @@ function escapeHtml(text) {
     div.textContent = text || '';
     return div.innerHTML;
 }
+
+// =============================================================================
+// WORKFLOW TRIGGER FUNCTIONS
+// =============================================================================
+
+async function triggerWorkflow(owner, repo, workflowId) {
+    const token = prompt('Enter your GitHub PAT (Personal Access Token) with repo scope:');
+    if (!token) { alert('Workflow trigger cancelled. PAT required.'); return; }
+    try {
+        const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflowId}/dispatches`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `token ${token}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ ref: 'main' })
+        });
+        if (response.ok) { alert(`✅ Workflow triggered successfully on ${repo}!`); }
+        else { const error = await response.json(); alert(`❌ Failed to trigger workflow: ${error.message}`); }
+    } catch (error) { alert(`❌ Error triggering workflow: ${error.message}`); }
+}
+
+async function installWorkflow(owner, repo, workflowType) {
+    const token = prompt('Enter your GitHub PAT (Personal Access Token) with repo scope:');
+    if (!token) { alert('Workflow installation cancelled. PAT required.'); return; }
+    const workflowFiles = {
+        'health-check': { name: 'org-repo-health-check.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/org-repo-health-check.yml' },
+        'dependabot-batch': { name: 'org-dependabot-batch-manager.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/org-dependabot-batch-manager.yml' },
+        'pr-swarm': { name: 'org-pr-swarm-manager.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/org-pr-swarm-manager.yml' },
+        'self-heal': { name: 'org-self-heal.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/org-self-heal.yml' },
+        'conflict-detector': { name: 'org-automation-conflict-detector.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/org-automation-conflict-detector.yml' }
+    };
+    const workflow = workflowFiles[workflowType];
+    if (!workflow) { alert('Invalid workflow type.'); return; }
+    try {
+        const contentResponse = await fetch(workflow.url);
+        const content = await contentResponse.text();
+        const createResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/.github/workflows/${workflow.name}`, {
+            method: 'PUT',
+            headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: `chore: add ${workflow.name} from Org Brain`, content: btoa(content) })
+        });
+        if (createResponse.ok) { alert(`✅ Workflow ${workflow.name} installed successfully on ${repo}!`); }
+        else { const error = await createResponse.json(); alert(`❌ Failed to install workflow: ${error.message}`); }
+    } catch (error) { alert(`❌ Error installing workflow: ${error.message}`); }
+}
+
+async function runCodeAnalysis(owner, repo) {
+    const token = prompt('Enter your GitHub PAT (Personal Access Token) with repo and workflow scopes:');
+    if (!token) { alert('Analysis cancelled. PAT required.'); return; }
+    try {
+        const response = await fetch(`https://api.github.com/repos/${owner}/Org-Brain/actions/workflows/analyze-code.yml/dispatches`, {
+            method: 'POST',
+            headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ref: 'main', inputs: { repo: repo, owner: owner } })
+        });
+        if (response.ok) { alert(`✅ Code analysis started for ${repo}!\n\nResults will be available in the dashboard once complete.`); }
+        else { const error = await response.json(); alert(`❌ Failed to start analysis: ${error.message}`); }
+    } catch (error) { alert(`❌ Error starting analysis: ${error.message}`); }
+}
+
+async function fetchAnalysisResults(repo) {
+    try { const response = await fetch(`data/analysis/${repo}.json`); if (response.ok) { return await response.json(); } return null; } catch (error) { return null; }
+}
+
+async function showAnalysisModal(owner, repo) {
+    const analysis = await fetchAnalysisResults(repo);
+    let content = analysis ? `
+        <div class="analysis-results"><h3>Analysis Results for ${repo}</h3>
+        <p class="analysis-date">Analyzed: ${new Date(analysis.analyzed_at).toLocaleString()}</p>
+        <div class="health-score-display"><div class="health-score-circle ${analysis.health_status}"><span class="score">${analysis.health_score}</span></div>
+        <span class="health-status">${analysis.health_status.toUpperCase()}</span></div>
+        <div class="metrics-grid">
+            <div class="metric-card"><span class="metric-label">Code Quality</span><span class="metric-value">${analysis.metrics.code_quality}</span></div>
+            <div class="metric-card"><span class="metric-label">Documentation</span><span class="metric-value">${analysis.metrics.documentation}</span></div>
+            <div class="metric-card"><span class="metric-label">Testing</span><span class="metric-value">${analysis.metrics.testing}</span></div>
+            <div class="metric-card"><span class="metric-label">Security</span><span class="metric-value">${analysis.metrics.security}</span></div>
+            <div class="metric-card"><span class="metric-label">Maintenance</span><span class="metric-value">${analysis.metrics.maintenance}</span></div>
+        </div></div>` : `<div class="analysis-pending"><h3>No Analysis Available for ${repo}</h3><p>Run a new analysis to get code quality metrics.</p></div>`;
+    content += `<div class="analysis-actions"><button onclick="runCodeAnalysis('${owner}', '${repo}')" class="btn btn-primary">🔄 Run New Analysis</button><button onclick="closeAnalysisModal()" class="btn btn-secondary">Close</button></div>`;
+    showModal(`Code Analysis: ${repo}`, content);
+}
+
+function closeAnalysisModal() { const modal = document.getElementById('modal-overlay'); if (modal) { modal.remove(); } }
+
+function showWorkflowInstallModal(owner, repo) {
+    const content = `<div class="workflow-install"><h3>Install Workflows to ${repo}</h3><p>Select a workflow to install:</p>
+        <div class="workflow-list">
+            <div class="workflow-option"><button onclick="installWorkflow('${owner}', '${repo}', 'health-check')" class="btn btn-outline">🏥 Health Check</button><span class="workflow-desc">Weekly health monitoring</span></div>
+            <div class="workflow-option"><button onclick="installWorkflow('${owner}', '${repo}', 'dependabot-batch')" class="btn btn-outline">📦 Dependabot Batch</button><span class="workflow-desc">Batch dependency updates</span></div>
+            <div class="workflow-option"><button onclick="installWorkflow('${owner}', '${repo}', 'pr-swarm')" class="btn btn-outline">🤖 PR Swarm Manager</button><span class="workflow-desc">Automated PR management</span></div>
+            <div class="workflow-option"><button onclick="installWorkflow('${owner}', '${repo}', 'self-heal')" class="btn btn-outline">🔧 Self-Heal</button><span class="workflow-desc">Automated code maintenance</span></div>
+            <div class="workflow-option"><button onclick="installWorkflow('${owner}', '${repo}', 'conflict-detector')" class="btn btn-outline">⚠️ Conflict Detector</button><span class="workflow-desc">Detect bot conflicts</span></div>
+        </div></div><div class="analysis-actions"><button onclick="closeModal()" class="btn btn-secondary">Close</button></div>`;
+    showModal(`Install Workflows: ${repo}`, content);
+}
+
+function showWorkflowTriggerModal(owner, repo) {
+    const content = `<div class="workflow-trigger"><h3>Run Workflows on ${repo}</h3><p>Select a workflow to trigger:</p>
+        <div class="workflow-list">
+            <div class="workflow-option"><button onclick="triggerWorkflow('${owner}', '${repo}', 'org-repo-health-check.yml')" class="btn btn-outline">🏥 Health Check</button></div>
+            <div class="workflow-option"><button onclick="triggerWorkflow('${owner}', '${repo}', 'org-dependabot-batch-manager.yml')" class="btn btn-outline">📦 Dependabot Batch</button></div>
+            <div class="workflow-option"><button onclick="triggerWorkflow('${owner}', '${repo}', 'org-pr-swarm-manager.yml')" class="btn btn-outline">🤖 PR Swarm</button></div>
+            <div class="workflow-option"><button onclick="triggerWorkflow('${owner}', '${repo}', 'org-self-heal.yml')" class="btn btn-outline">🔧 Self-Heal</button></div>
+            <div class="workflow-option"><button onclick="triggerWorkflow('${owner}', '${repo}', 'org-automation-conflict-detector.yml')" class="btn btn-outline">⚠️ Conflict Detector</button></div>
+        </div><p class="workflow-note">Note: You'll need a PAT with repo scope.</p></div><div class="analysis-actions"><button onclick="closeModal()" class="btn btn-secondary">Close</button></div>`;
+    showModal(`Trigger Workflows: ${repo}`, content);
+}
+
+function showModal(title, content) {
+    closeModal();
+    const modal = document.createElement('div');
+    modal.id = 'modal-overlay'; modal.className = 'modal-overlay';
+    modal.innerHTML = `<div class="modal-content"><div class="modal-header"><h2>${escapeHtml(title)}</h2><button class="modal-close" onclick="closeModal()">&times;</button></div><div class="modal-body">${content}</div></div>`;
+    document.body.appendChild(modal);
+}
+
+function closeModal() { const modal = document.getElementById('modal-overlay'); if (modal) { modal.remove(); } }
 
 function log(...args) {
     if (CONFIG.debug) {
