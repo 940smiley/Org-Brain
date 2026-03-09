@@ -59,7 +59,7 @@ on:
         default: "10"
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
   actions: read
 
@@ -67,6 +67,8 @@ env:
   ORG_NAME: ${{ github.event.inputs.org || github.repository_owner }}
   TIME_WINDOW_MINUTES: ${{ github.event.inputs.time_window_minutes || 10 }}
   SPECIFIC_PR: ${{ github.event.inputs.pr_number || '' }}
+  # Token fallback: use ORG_AUTOMATION_TOKEN if available, otherwise GITHUB_TOKEN
+  GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
 
 jobs:
   # ===========================================================================
@@ -83,15 +85,24 @@ jobs:
       - name: Checkout Org Brain
         uses: actions/checkout@v4
 
+      - name: Install prerequisites
+        run: |
+          # Ensure jq and gh are available
+          which jq || (sudo apt-get update && sudo apt-get install -y jq)
+          which gh || (curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && sudo apt-get update && sudo apt-get install -y gh)
+          echo "✅ Prerequisites installed"
+          jq --version
+          gh --version
+
       - name: Detect Automation Conflict
         id: detect-conflict
         env:
-          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.inputs.pr_number || github.event.pull_request.number }}
         run: |
           #!/bin/bash
-          
+          set -e
+
           echo "🔍 Checking for automation conflicts in PR #$PR_NUMBER"
 
           # Skip if last commit author is a bot
@@ -206,7 +217,6 @@ jobs:
       - name: Apply Conflict Labels and Comment
         if: ${{ steps.detect-conflict.outputs.has_conflict == 'true' }}
         env:
-          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.inputs.pr_number || github.event.pull_request.number }}
         run: |
@@ -259,10 +269,17 @@ jobs:
       - name: Checkout Org Brain
         uses: actions/checkout@v4
 
+      - name: Install prerequisites
+        run: |
+          # Ensure jq and gh are available
+          which jq || (sudo apt-get update && sudo apt-get install -y jq)
+          which gh || (curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && sudo apt-get update && sudo apt-get install -y gh)
+          echo "✅ Prerequisites installed"
+          jq --version
+          gh --version
+
       - name: Scan All Open PRs for Conflicts
         id: scan
-        env:
-          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
         run: |
           #!/bin/bash
           
@@ -378,7 +395,6 @@ jobs:
     steps:
       - name: Apply Conflict Resolution
         env:
-          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
           CONFLICT_PR: ${{ matrix.conflict_pr }}
         run: |
           #!/bin/bash
