@@ -1,6 +1,6 @@
 # Workflow Failures Report
 
-**Generated:** 2026-03-09 07:44:58 UTC
+**Generated:** 2026-03-09 07:54:54 UTC
 **Scan Mode:** single
 **Repositories Scanned:** 1
 
@@ -19,6 +19,11 @@
 ## Failed Workflows
 
 **No workflow failures detected!** All workflows are running successfully.
+
+Note: This might mean:
+- All workflows completed successfully
+- Workflows are still in progress (not yet concluded)
+- No workflow runs in the last 50 runs
 
 ---
 
