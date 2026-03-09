@@ -1306,7 +1306,7 @@ async function installTokenToAllRepos() {
                 body: JSON.stringify({
                     ref: 'main',
                     inputs: {
-                        automation_token: automationToken,
+                        pat: automationToken,
                         owner: CONFIG.orgName,
                         skip_existing: skipExistingValue.toString()
                     }

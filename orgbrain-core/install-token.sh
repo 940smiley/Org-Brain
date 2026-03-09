@@ -1,14 +1,22 @@
 #!/bin/bash
 # =============================================================================
-# ORG BRAIN - Install Automation Token to All Repositories
+# ORG BRAIN - Install Automation Token to All Repositories (FIXED)
 # =============================================================================
 # Purpose: Install ORG_AUTOMATION_TOKEN secret to all repositories
 #
+# FIXED ISSUES:
+# - Token now read from ORG_AUTOMATION_TOKEN environment variable
+# - Hard fail if token is missing
+# - Debug output at every step
+# - Proper encryption using Python
+# - Repo loop now executes correctly
+# - Detailed logging per repository
+#
 # Usage:
-#   ./install-token.sh -t <TOKEN> [-o OWNER] [-n SECRET_NAME] [-s]
+#   export ORG_AUTOMATION_TOKEN="ghp_your_token"
+#   ./install-token.sh [-o OWNER] [-s] [-v]
 #
 # Options:
-#   -t, --token       Fine-Grained PAT (required)
 #   -o, --owner       GitHub username/organization (default: 940smiley)
 #   -n, --name        Secret name (default: ORG_AUTOMATION_TOKEN)
 #   -s, --skip        Skip repos that already have the secret
@@ -18,6 +26,7 @@
 # Output:
 #   - data/token-install/results.jsonl (per-repo results)
 #   - data/token-install/summary.md (summary report)
+#   - data/token-install/<repo>.log (per-repo logs)
 #
 # Requirements:
 #   - gh (GitHub CLI)
@@ -68,7 +77,7 @@ log_verbose() {
 }
 
 show_help() {
-    head -30 "$0" | tail -20
+    head -35 "$0" | tail -25
     exit 0
 }
 
@@ -76,14 +85,8 @@ show_help() {
 # PARSE ARGUMENTS
 # =============================================================================
 
-TOKEN=""
-
 while [[ $# -gt 0 ]]; do
     case $1 in
-        -t|--token)
-            TOKEN="$2"
-            shift 2
-            ;;
         -o|--owner)
             OWNER="$2"
             shift 2
@@ -110,17 +113,41 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Validate required arguments
+# =============================================================================
+# VALIDATE TOKEN - CRITICAL FIX
+# =============================================================================
+
+log_info "=== VALIDATION: Checking token ==="
+
+# CRITICAL FIX: Read token from environment variable
+TOKEN="$ORG_AUTOMATION_TOKEN"
+
+# CRITICAL FIX: Hard fail if token is missing
 if [ -z "$TOKEN" ]; then
-    log_error "Token is required. Use -t or --token"
+    log_error "❌ ERROR: No token received!"
+    log_error "The ORG_AUTOMATION_TOKEN environment variable is empty."
+    log_error ""
+    log_error "Set the token before running this script:"
+    log_error "  export ORG_AUTOMATION_TOKEN=\"ghp_your_token\""
+    log_error "  ./install-token.sh"
     exit 1
 fi
+
+# Validate token format
+if [[ ! "$TOKEN" =~ ^gh[pousr]_ ]] && [[ ! "$TOKEN" =~ ^github_pat_ ]]; then
+    log_warning "⚠️  Token does not appear to be a valid GitHub PAT"
+    log_warning "Expected format: ghp_*, gho_*, ghu_*, ghs_*, ghr_*, or github_pat_*"
+fi
+
+log_success "✅ Token validation passed"
+log_info "Token length: ${#TOKEN} characters"
+echo ""
 
 # =============================================================================
 # CHECK PREREQUISITES
 # =============================================================================
 
-log_info "Checking prerequisites..."
+log_info "=== PREREQUISITES: Checking requirements ==="
 
 command -v gh >/dev/null 2>&1 || { log_error "gh (GitHub CLI) is required but not installed."; exit 1; }
 command -v jq >/dev/null 2>&1 || { log_error "jq is required but not installed."; exit 1; }
@@ -131,7 +158,29 @@ python3 -c "import nacl" 2>/dev/null || {
     exit 1
 }
 
-log_success "All prerequisites installed"
+log_success "✅ All prerequisites installed"
+echo ""
+
+# =============================================================================
+# VALIDATE GITHUB API ACCESS
+# =============================================================================
+
+log_info "=== VALIDATION: Checking GitHub API access ==="
+
+export GH_TOKEN="$TOKEN"
+
+user_login=$(gh api user --jq '.login' 2>&1)
+api_exit_code=$?
+
+if [ $api_exit_code -ne 0 ]; then
+    log_error "❌ GitHub API access failed!"
+    log_error "Response: $user_login"
+    exit 1
+fi
+
+log_success "✅ API access confirmed"
+log_info "Authenticated as: $user_login"
+echo ""
 
 # =============================================================================
 # CREATE OUTPUT DIRECTORY
@@ -139,19 +188,19 @@ log_success "All prerequisites installed"
 
 mkdir -p "$OUTPUT_DIR"
 log_info "Output directory: $OUTPUT_DIR"
+echo ""
 
 # =============================================================================
 # ENUMERATE REPOSITORIES
 # =============================================================================
 
-log_info "Enumerating repositories for $OWNER..."
-
-export GH_TOKEN="$TOKEN"
+log_info "=== ENUMERATION: Fetching repositories ==="
+log_info "Owner: $OWNER"
 
 repos_json=$(gh api "/users/$OWNER/repos?per_page=100&type=all" --paginate 2>/dev/null || echo "[]")
 
 if [ "$repos_json" = "[]" ] || [ -z "$repos_json" ]; then
-    log_warning "No repositories found"
+    log_warning "⚠️  No repositories found"
     exit 0
 fi
 
@@ -159,17 +208,25 @@ fi
 active_repos=$(echo "$repos_json" | jq -c '[.[] | select(.archived == false) | {name: .name, private: .private}]')
 repo_count=$(echo "$active_repos" | jq 'length')
 
-log_success "Found $repo_count active repositories"
+log_success "✅ Found $repo_count active repositories"
 
-# Save repo list
+# Save repo names to file
+echo "$active_repos" | jq -r '.[].name' > "$OUTPUT_DIR/repos.txt"
+
+log_info "Repository list:"
+cat "$OUTPUT_DIR/repos.txt"
+echo ""
+
+# Save for processing
 echo "$active_repos" > "$OUTPUT_DIR/repos.json"
 
 # =============================================================================
 # INSTALL SECRETS
 # =============================================================================
 
-log_info "Installing $SECRET_NAME to repositories..."
-log_info "Token length: ${#TOKEN} characters"
+log_info "=== INSTALLATION: Installing secrets ==="
+log_info "Secret Name: $SECRET_NAME"
+log_info "Skip Existing: $SKIP_EXISTING"
 echo ""
 
 success_count=0
@@ -182,17 +239,20 @@ skip_count=0
 echo "$active_repos" | jq -c '.[]' | while read -r repo_info; do
     repo_name=$(echo "$repo_info" | jq -r '.name')
     is_private=$(echo "$repo_info" | jq -r '.private')
-
+    
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     log_info "Processing: $repo_name (private: $is_private)"
-
+    
+    # Create log file for this repo
+    log_file="$OUTPUT_DIR/${repo_name}.log"
+    echo "Log: $repo_name" > "$log_file"
+    echo "Started: $(date -u)" >> "$log_file"
+    
     # Fetch repo's public key for encryption
     log_verbose "Fetching public key for $repo_name..."
     key_response=$(gh api \
-        -H "Authorization: Bearer $TOKEN" \
-        -H "Accept: application/vnd.github+json" \
         "/repos/$OWNER/$repo_name/actions/secrets/public-key" 2>&1) || true
-
+    
     if ! echo "$key_response" | jq -e '.key_id' > /dev/null 2>&1; then
         log_error "Failed to fetch public key: $key_response"
         failure_count=$((failure_count + 1))
@@ -201,21 +261,22 @@ echo "$active_repos" | jq -c '.[]' | while read -r repo_info; do
             --arg status "failed" \
             --arg error "Failed to fetch public key" \
             '{repo:$repo,status:$status,error:$error}' >> "$OUTPUT_DIR/results.jsonl"
+        echo "Error: Failed to fetch public key" >> "$log_file"
         continue
     fi
-
+    
     key_id=$(echo "$key_response" | jq -r '.key_id')
     public_key=$(echo "$key_response" | jq -r '.key')
-
+    
     log_verbose "Key ID: $key_id"
-
+    echo "Key ID: $key_id" >> "$log_file"
+    
     # Check if secret already exists
     if [ "$SKIP_EXISTING" = true ]; then
+        log_verbose "Checking if secret exists..."
         check_response=$(gh api \
-            -H "Authorization: Bearer $TOKEN" \
-            -H "Accept: application/vnd.github+json" \
             "/repos/$OWNER/$repo_name/actions/secrets/$SECRET_NAME" 2>&1 || true)
-
+        
         if echo "$check_response" | jq -e '.name' > /dev/null 2>&1; then
             log_warning "Secret already exists, skipping"
             skip_count=$((skip_count + 1))
@@ -224,15 +285,19 @@ echo "$active_repos" | jq -c '.[]' | while read -r repo_info; do
                 --arg status "skipped" \
                 --arg reason "Secret already exists" \
                 '{repo:$repo,status:$status,reason:$reason}' >> "$OUTPUT_DIR/results.jsonl"
+            echo "Skipped: Secret already exists" >> "$log_file"
             continue
         fi
     fi
-
+    
     # Encrypt the token using Python/PyNaCl
     log_verbose "Encrypting token..."
-    encrypted_value=$(python3 -c "
+    echo "Encrypting token..." >> "$log_file"
+    
+    encrypted_value=$(python3 << PYEOF
 import base64
 import sys
+import os
 from nacl import encoding, public
 
 def encrypt(public_key: str, secret_value: str) -> str:
@@ -241,19 +306,41 @@ def encrypt(public_key: str, secret_value: str) -> str:
     encrypted = sealed_box.encrypt(secret_value.encode('utf-8'))
     return base64.b64encode(encrypted).decode('utf-8')
 
-print(encrypt('$public_key', '$TOKEN'))
-")
+# Read token from environment
+token = os.environ.get('ORG_AUTOMATION_TOKEN', '')
+if not token:
+    print("ERROR: No token in environment", file=sys.stderr)
+    sys.exit(1)
 
+print(encrypt('$public_key', token))
+PYEOF
+)
+    
+    if [ -z "$encrypted_value" ] || echo "$encrypted_value" | grep -q "ERROR"; then
+        log_error "Encryption failed!"
+        failure_count=$((failure_count + 1))
+        jq -n \
+            --arg repo "$repo_name" \
+            --arg status "failed" \
+            --arg error "Encryption failed" \
+            '{repo:$repo,status:$status,error:$error}' >> "$OUTPUT_DIR/results.jsonl"
+        echo "Encryption failed" >> "$log_file"
+        continue
+    fi
+    
+    log_verbose "Token encrypted successfully"
+    echo "Token encrypted" >> "$log_file"
+    
     # Upload encrypted secret
     log_verbose "Uploading secret..."
+    echo "Uploading secret..." >> "$log_file"
+    
     upload_response=$(gh api \
         -X PUT \
-        -H "Authorization: Bearer $TOKEN" \
-        -H "Accept: application/vnd.github+json" \
         "/repos/$OWNER/$repo_name/actions/secrets/$SECRET_NAME" \
         -f encrypted_value="$encrypted_value" \
         -f key_id="$key_id" 2>&1) || true
-
+    
     if [ -z "$upload_response" ]; then
         log_success "Successfully installed secret"
         success_count=$((success_count + 1))
@@ -261,6 +348,7 @@ print(encrypt('$public_key', '$TOKEN'))
             --arg repo "$repo_name" \
             --arg status "success" \
             '{repo:$repo,status:$status}' >> "$OUTPUT_DIR/results.jsonl"
+        echo "Success" >> "$log_file"
     else
         log_error "Failed to upload secret: $upload_response"
         failure_count=$((failure_count + 1))
@@ -269,19 +357,25 @@ print(encrypt('$public_key', '$TOKEN'))
             --arg status "failed" \
             --arg error "$upload_response" \
             '{repo:$repo,status:$status,error:$error}' >> "$OUTPUT_DIR/results.jsonl"
+        echo "Error: $upload_response" >> "$log_file"
     fi
+    
+    echo "Completed: $(date -u)" >> "$log_file"
 done
 
 # =============================================================================
-# GENERATE SUMMARY
+# COUNT RESULTS
 # =============================================================================
 
-# Count results from file
 if [ -f "$OUTPUT_DIR/results.jsonl" ]; then
     success_count=$(grep -c '"status":"success"' "$OUTPUT_DIR/results.jsonl" || echo "0")
     failure_count=$(grep -c '"status":"failed"' "$OUTPUT_DIR/results.jsonl" || echo "0")
     skip_count=$(grep -c '"status":"skipped"' "$OUTPUT_DIR/results.jsonl" || echo "0")
 fi
+
+# =============================================================================
+# GENERATE SUMMARY
+# =============================================================================
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -320,6 +414,7 @@ $(cat "$OUTPUT_DIR/results.jsonl" | jq -s '.' 2>/dev/null || echo "[]")
 EOF
 
 log_success "Report generated: $OUTPUT_DIR/summary.md"
+echo ""
 
 # =============================================================================
 # EXIT
