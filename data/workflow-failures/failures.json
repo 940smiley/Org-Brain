@@ -1,15 +1,866 @@
 {
-  "scanned_at": "2026-03-09T09:55:43Z",
+  "scanned_at": "2026-03-09T10:26:37Z",
   "mode": "single",
   "scan_summary": {
-    "total_failures": 0,
-    "repos_with_failures": 0,
+    "total_failures": 85,
+    "repos_with_failures": 1,
     "repos_scanned": 1
   },
   "repositories": [
     {
       "name": "Org-Brain",
-      "failures": []
+      "failures": [
+        {
+          "workflow": ".github/workflows/org-dependabot-batch-manager.yml",
+          "path": ".github/workflows/org-dependabot-batch-manager.yml",
+          "run_id": 22848686075,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22848686075",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T10:16:24Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/workflow-generator.yml",
+          "path": ".github/workflows/workflow-generator.yml",
+          "run_id": 22848685749,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22848685749",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T10:16:24Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-self-heal.yml",
+          "path": ".github/workflows/org-self-heal.yml",
+          "run_id": 22848685384,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22848685384",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T10:16:23Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-repo-health-check.yml",
+          "path": ".github/workflows/org-repo-health-check.yml",
+          "run_id": 22848685056,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22848685056",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T10:16:23Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/workflow-gen.yml",
+          "path": ".github/workflows/workflow-gen.yml",
+          "run_id": 22848684696,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22848684696",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T10:16:22Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/pages-auto-setup.yml",
+          "path": ".github/workflows/pages-auto-setup.yml",
+          "run_id": 22848684377,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22848684377",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T10:16:22Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": "⚠️ Org Automation Conflict Detector",
+          "path": ".github/workflows/org-automation-conflict-detector.yml",
+          "run_id": 22848252593,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22848252593",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T10:05:04Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": "🤖 Org PR Swarm Manager",
+          "path": ".github/workflows/org-pr-swarm-manager.yml",
+          "run_id": 22847986306,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22847986306",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T09:59:09Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-self-heal.yml",
+          "path": ".github/workflows/org-self-heal.yml",
+          "run_id": 22846603412,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22846603412",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T09:21:21Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-repo-health-check.yml",
+          "path": ".github/workflows/org-repo-health-check.yml",
+          "run_id": 22846603161,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22846603161",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T09:21:21Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/pages-auto-setup.yml",
+          "path": ".github/workflows/pages-auto-setup.yml",
+          "run_id": 22846602950,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22846602950",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T09:21:20Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/workflow-generator.yml",
+          "path": ".github/workflows/workflow-generator.yml",
+          "run_id": 22846602733,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22846602733",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T09:21:20Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-dependabot-batch-manager.yml",
+          "path": ".github/workflows/org-dependabot-batch-manager.yml",
+          "run_id": 22846602381,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22846602381",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T09:21:19Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/workflow-gen.yml",
+          "path": ".github/workflows/workflow-gen.yml",
+          "run_id": 22846602166,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22846602166",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T09:21:19Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": "⚠️ Org Automation Conflict Detector",
+          "path": ".github/workflows/org-automation-conflict-detector.yml",
+          "run_id": 22845854189,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22845854189",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T09:00:33Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": "🤖 Org PR Swarm Manager",
+          "path": ".github/workflows/org-pr-swarm-manager.yml",
+          "run_id": 22845575079,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22845575079",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T08:53:29Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/workflow-generator.yml",
+          "path": ".github/workflows/workflow-generator.yml",
+          "run_id": 22844070803,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22844070803",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T08:08:25Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/workflow-gen.yml",
+          "path": ".github/workflows/workflow-gen.yml",
+          "run_id": 22844070627,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22844070627",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T08:08:25Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/pages-auto-setup.yml",
+          "path": ".github/workflows/pages-auto-setup.yml",
+          "run_id": 22844070469,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22844070469",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T08:08:24Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-dependabot-batch-manager.yml",
+          "path": ".github/workflows/org-dependabot-batch-manager.yml",
+          "run_id": 22844070291,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22844070291",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T08:08:24Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-self-heal.yml",
+          "path": ".github/workflows/org-self-heal.yml",
+          "run_id": 22844070137,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22844070137",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T08:08:24Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-repo-health-check.yml",
+          "path": ".github/workflows/org-repo-health-check.yml",
+          "run_id": 22844069980,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22844069980",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T08:08:23Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": "⚠️ Org Automation Conflict Detector",
+          "path": ".github/workflows/org-automation-conflict-detector.yml",
+          "run_id": 22843848633,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22843848633",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T08:01:24Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-repo-health-check.yml",
+          "path": ".github/workflows/org-repo-health-check.yml",
+          "run_id": 22843571049,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22843571049",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T07:51:53Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/workflow-generator.yml",
+          "path": ".github/workflows/workflow-generator.yml",
+          "run_id": 22843570846,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22843570846",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T07:51:53Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/pages-auto-setup.yml",
+          "path": ".github/workflows/pages-auto-setup.yml",
+          "run_id": 22843570670,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22843570670",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T07:51:53Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-dependabot-batch-manager.yml",
+          "path": ".github/workflows/org-dependabot-batch-manager.yml",
+          "run_id": 22843570461,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22843570461",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T07:51:52Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-self-heal.yml",
+          "path": ".github/workflows/org-self-heal.yml",
+          "run_id": 22843570338,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22843570338",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T07:51:52Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/workflow-gen.yml",
+          "path": ".github/workflows/workflow-gen.yml",
+          "run_id": 22843570158,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22843570158",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T07:51:52Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-self-heal.yml",
+          "path": ".github/workflows/org-self-heal.yml",
+          "run_id": 22843292724,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22843292724",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T07:42:25Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/workflow-gen.yml",
+          "path": ".github/workflows/workflow-gen.yml",
+          "run_id": 22843292550,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22843292550",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T07:42:24Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-dependabot-batch-manager.yml",
+          "path": ".github/workflows/org-dependabot-batch-manager.yml",
+          "run_id": 22843292356,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22843292356",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T07:42:24Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-repo-health-check.yml",
+          "path": ".github/workflows/org-repo-health-check.yml",
+          "run_id": 22843292197,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22843292197",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T07:42:24Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/pages-auto-setup.yml",
+          "path": ".github/workflows/pages-auto-setup.yml",
+          "run_id": 22843292037,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22843292037",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T07:42:23Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/workflow-generator.yml",
+          "path": ".github/workflows/workflow-generator.yml",
+          "run_id": 22843291850,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22843291850",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T07:42:23Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-self-heal.yml",
+          "path": ".github/workflows/org-self-heal.yml",
+          "run_id": 22843074339,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22843074339",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T07:34:56Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/workflow-generator.yml",
+          "path": ".github/workflows/workflow-generator.yml",
+          "run_id": 22843074198,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22843074198",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T07:34:56Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-repo-health-check.yml",
+          "path": ".github/workflows/org-repo-health-check.yml",
+          "run_id": 22843074050,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22843074050",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T07:34:56Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/workflow-gen.yml",
+          "path": ".github/workflows/workflow-gen.yml",
+          "run_id": 22843073918,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22843073918",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T07:34:55Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-dependabot-batch-manager.yml",
+          "path": ".github/workflows/org-dependabot-batch-manager.yml",
+          "run_id": 22843073638,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22843073638",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T07:34:55Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/pages-auto-setup.yml",
+          "path": ".github/workflows/pages-auto-setup.yml",
+          "run_id": 22843073465,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22843073465",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T07:34:54Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": "🤖 Org PR Swarm Manager",
+          "path": ".github/workflows/org-pr-swarm-manager.yml",
+          "run_id": 22843046216,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22843046216",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T07:34:53Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": "⚠️ Org Automation Conflict Detector",
+          "path": ".github/workflows/org-automation-conflict-detector.yml",
+          "run_id": 22842539660,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22842539660",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T07:16:43Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": "⚠️ Org Automation Conflict Detector",
+          "path": ".github/workflows/org-automation-conflict-detector.yml",
+          "run_id": 22840760939,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22840760939",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T06:10:56Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": "🤖 Org PR Swarm Manager",
+          "path": ".github/workflows/org-pr-swarm-manager.yml",
+          "run_id": 22840568401,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22840568401",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T06:04:04Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/workflow-generator.yml",
+          "path": ".github/workflows/workflow-generator.yml",
+          "run_id": 22839702348,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22839702348",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T05:27:24Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/workflow-gen.yml",
+          "path": ".github/workflows/workflow-gen.yml",
+          "run_id": 22839702164,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22839702164",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T05:27:24Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-dependabot-batch-manager.yml",
+          "path": ".github/workflows/org-dependabot-batch-manager.yml",
+          "run_id": 22839702026,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22839702026",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T05:27:24Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-self-heal.yml",
+          "path": ".github/workflows/org-self-heal.yml",
+          "run_id": 22839701916,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22839701916",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T05:27:24Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-repo-health-check.yml",
+          "path": ".github/workflows/org-repo-health-check.yml",
+          "run_id": 22839701817,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22839701817",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T05:27:23Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/pages-auto-setup.yml",
+          "path": ".github/workflows/pages-auto-setup.yml",
+          "run_id": 22839701710,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22839701710",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T05:27:23Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": "🤖 Autonomous Agents Manager",
+          "path": ".github/workflows/autonomous-agents-manager.yml",
+          "run_id": 22839475355,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22839475355",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T05:17:15Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": "⚠️ Org Automation Conflict Detector",
+          "path": ".github/workflows/org-automation-conflict-detector.yml",
+          "run_id": 22839356983,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22839356983",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T05:11:43Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": "🤖 Org PR Swarm Manager",
+          "path": ".github/workflows/org-pr-swarm-manager.yml",
+          "run_id": 22839024800,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22839024800",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T04:57:13Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-repo-health-check.yml",
+          "path": ".github/workflows/org-repo-health-check.yml",
+          "run_id": 22838867494,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22838867494",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T04:49:08Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/workflow-generator.yml",
+          "path": ".github/workflows/workflow-generator.yml",
+          "run_id": 22838867319,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22838867319",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T04:49:08Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/workflow-gen.yml",
+          "path": ".github/workflows/workflow-gen.yml",
+          "run_id": 22838867189,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22838867189",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T04:49:07Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/pages-auto-setup.yml",
+          "path": ".github/workflows/pages-auto-setup.yml",
+          "run_id": 22838867051,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22838867051",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T04:49:07Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-dependabot-batch-manager.yml",
+          "path": ".github/workflows/org-dependabot-batch-manager.yml",
+          "run_id": 22838866955,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22838866955",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T04:49:07Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-self-heal.yml",
+          "path": ".github/workflows/org-self-heal.yml",
+          "run_id": 22838866849,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22838866849",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T04:49:06Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": "📊 Generate Repo Data",
+          "path": ".github/workflows/generate-repo-data.yml",
+          "run_id": 22837895220,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22837895220",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T04:06:16Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": "⚠️ Org Automation Conflict Detector",
+          "path": ".github/workflows/org-automation-conflict-detector.yml",
+          "run_id": 22837422908,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22837422908",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T03:44:22Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": "🤖 Org PR Swarm Manager",
+          "path": ".github/workflows/org-pr-swarm-manager.yml",
+          "run_id": 22837392777,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22837392777",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T03:42:57Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": "📊 Generate Repo Data",
+          "path": ".github/workflows/generate-repo-data.yml",
+          "run_id": 22837114831,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22837114831",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T03:28:52Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/workflow-generator-fixed.yml",
+          "path": ".github/workflows/workflow-generator-fixed.yml",
+          "run_id": 22837114603,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22837114603",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T03:28:42Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/workflow-gen.yml",
+          "path": ".github/workflows/workflow-gen.yml",
+          "run_id": 22837114523,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22837114523",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T03:28:41Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/pages-auto-setup.yml",
+          "path": ".github/workflows/pages-auto-setup.yml",
+          "run_id": 22837114419,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22837114419",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T03:28:41Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-self-heal.yml",
+          "path": ".github/workflows/org-self-heal.yml",
+          "run_id": 22837114318,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22837114318",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T03:28:41Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-repo-health-check.yml",
+          "path": ".github/workflows/org-repo-health-check.yml",
+          "run_id": 22837114223,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22837114223",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T03:28:40Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-dependabot-batch-manager.yml",
+          "path": ".github/workflows/org-dependabot-batch-manager.yml",
+          "run_id": 22837114069,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22837114069",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T03:28:40Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/workflow-generator.yml",
+          "path": ".github/workflows/workflow-generator.yml",
+          "run_id": 22837113982,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22837113982",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T03:28:40Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": "⚠️ Org Automation Conflict Detector",
+          "path": ".github/workflows/org-automation-conflict-detector.yml",
+          "run_id": 22836186124,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22836186124",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T02:44:36Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-self-heal.yml",
+          "path": ".github/workflows/org-self-heal.yml",
+          "run_id": 22835880191,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22835880191",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T02:28:59Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-repo-health-check.yml",
+          "path": ".github/workflows/org-repo-health-check.yml",
+          "run_id": 22835880093,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22835880093",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T02:28:58Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-dependabot-batch-manager.yml",
+          "path": ".github/workflows/org-dependabot-batch-manager.yml",
+          "run_id": 22835879975,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22835879975",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T02:28:58Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": "⚠️ Org Automation Conflict Detector",
+          "path": ".github/workflows/org-automation-conflict-detector.yml",
+          "run_id": 22834465661,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22834465661",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T01:19:53Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": "🚀 Deploy Pages",
+          "path": ".github/workflows/deploy-pages.yml",
+          "run_id": 22833727722,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22833727722",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T00:43:20Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-self-heal.yml",
+          "path": ".github/workflows/org-self-heal.yml",
+          "run_id": 22833727381,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22833727381",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T00:43:06Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-repo-health-check.yml",
+          "path": ".github/workflows/org-repo-health-check.yml",
+          "run_id": 22833727260,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22833727260",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T00:43:06Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-dependabot-batch-manager.yml",
+          "path": ".github/workflows/org-dependabot-batch-manager.yml",
+          "run_id": 22833727162,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22833727162",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T00:43:06Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": "⚠️ Org Automation Conflict Detector",
+          "path": ".github/workflows/org-automation-conflict-detector.yml",
+          "run_id": 22833477080,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22833477080",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T00:30:25Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-dependabot-batch-manager.yml",
+          "path": ".github/workflows/org-dependabot-batch-manager.yml",
+          "run_id": 22833431502,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22833431502",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T00:27:47Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-self-heal.yml",
+          "path": ".github/workflows/org-self-heal.yml",
+          "run_id": 22833431412,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22833431412",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T00:27:47Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-repo-health-check.yml",
+          "path": ".github/workflows/org-repo-health-check.yml",
+          "run_id": 22833431306,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22833431306",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T00:27:47Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        },
+        {
+          "workflow": ".github/workflows/org-dependabot-batch-manager.yml",
+          "path": ".github/workflows/org-dependabot-batch-manager.yml",
+          "run_id": 22833338924,
+          "url": "https://github.com/940smiley/Org-Brain/actions/runs/22833338924",
+          "reason": "Conclusion: failure",
+          "timestamp": "2026-03-09T00:23:07Z",
+          "conclusion": "failure",
+          "suggestion": "Review workflow logs. Common fixes: add permissions, fix YAML syntax, ensure tokens are set."
+        }
+      ]
     }
   ]
 }
