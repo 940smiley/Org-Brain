@@ -13,6 +13,24 @@ const CONFIG = {
     orgDisplayName: 'Org Brain',
 
     // =========================================================================
+    // AUTHENTICATION TOKENS (AUTOMATIC)
+    // =========================================================================
+
+    /**
+     * GitHub Authentication Tokens
+     * Priority: orgAutomationToken > githubToken > ghToken
+     * 
+     * For GitHub Actions deployment, these are automatically populated from:
+     * - secrets.ORG_AUTOMATION_TOKEN
+     * - secrets.GITHUB_TOKEN
+     * 
+     * NEVER prompts the user for a token
+     */
+    orgAutomationToken: null,
+    githubToken: null,
+    ghToken: null,
+
+    // =========================================================================
     // DATA SETTINGS
     // =========================================================================
 

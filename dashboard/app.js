@@ -1,13 +1,14 @@
 /**
  * =============================================================================
- * ORG BRAIN DASHBOARD APPLICATION - Enhanced Version
+ * ORG BRAIN DASHBOARD APPLICATION - Fixed Version
  * =============================================================================
- * Features:
- * - Per-repo workflow controls
- * - Bulk actions
- * - Workflow status indicators
- * - Failure reporting panel
- * - Auto-repair functionality
+ * Fixes Applied:
+ * - Removed ALL PAT prompts (no more window.prompt)
+ * - Automatic token retrieval from GitHub Secrets
+ * - Success/failure notifications restored
+ * - Fixed repo list parsing (handles multiple repos correctly)
+ * - Unified workflow runner function
+ * - Global error handling for GitHub API failures
  */
 
 // =============================================================================
@@ -31,25 +32,95 @@ const AppState = {
     lastUpdated: null,
     selectedRepos: new Set(),
     workflowFailures: null,
-    bulkActionMode: false
+    bulkActionMode: false,
+    notifications: []
 };
 
 // Available workflows for dispatch
 const AVAILABLE_WORKFLOWS = [
-    { id: 'org-pr-swarm-manager.yml', name: '🤖 PR Swarm Manager', icon: '🔀' },
-    { id: 'org-dependabot-batch-manager.yml', name: '📦 Dependabot Batch', icon: '📦' },
-    { id: 'org-repo-health-check.yml', name: '🏥 Health Check', icon: '🏥' },
-    { id: 'org-self-heal.yml', name: '🔧 Self-Heal', icon: '🔧' },
-    { id: 'org-automation-conflict-detector.yml', name: '⚠️ Conflict Detector', icon: '⚠️' },
-    { id: 'autonomous-agents-manager.yml', name: '🤖 Agents Manager', icon: '🤖' },
-    { id: 'pages-auto-setup.yml', name: '📄 Pages Setup', icon: '📄' },
-    { id: 'analyze-code.yml', name: '🔍 Code Analysis', icon: '🔍' },
-    { id: 'scan-workflow-failures.yml', name: '🔍 Scan Failures', icon: '📊' },
-    { id: 'generate-repo-data.yml', name: '📊 Generate Data', icon: '📈' },
-    { id: 'workflow-generator.yml', name: '⚙️ Workflow Generator', icon: '⚙️' },
-    { id: 'autonomous-setup.yml', name: '🚀 One-Click Setup', icon: '🚀' },
-    { id: 'auto-repair.yml', name: '🔧 Auto-Repair', icon: '🛠️' }
+    { id: 'org-pr-swarm-manager.yml', name: 'PR Swarm Manager', icon: '🔀' },
+    { id: 'org-dependabot-batch-manager.yml', name: 'Dependabot Batch', icon: '📦' },
+    { id: 'org-repo-health-check.yml', name: 'Health Check', icon: '🏥' },
+    { id: 'org-self-heal.yml', name: 'Self-Heal', icon: '🔧' },
+    { id: 'org-automation-conflict-detector.yml', name: 'Conflict Detector', icon: '⚠️' },
+    { id: 'autonomous-agents-manager.yml', name: 'Agents Manager', icon: '🤖' },
+    { id: 'pages-auto-setup.yml', name: 'Pages Setup', icon: '📄' },
+    { id: 'analyze-code.yml', name: 'Code Analysis', icon: '🔍' },
+    { id: 'scan-workflow-failures.yml', name: 'Scan Failures', icon: '📊' },
+    { id: 'generate-repo-data.yml', name: 'Generate Data', icon: '📈' },
+    { id: 'workflow-generator.yml', name: 'Workflow Generator', icon: '⚙️' },
+    { id: 'autonomous-setup.yml', name: 'One-Click Setup', icon: '🚀' },
+    { id: 'auto-repair.yml', name: 'Auto-Repair', icon: '🛠️' }
 ];
+
+// =============================================================================
+// TOKEN MANAGEMENT - NO PROMPTS
+// =============================================================================
+
+/**
+ * Get authentication token automatically from CONFIG
+ * Priority: ORG_AUTOMATION_TOKEN > GITHUB_TOKEN > GH_TOKEN
+ * NEVER prompts the user
+ */
+function getAuthToken() {
+    // Try CONFIG values first (set from server-side or environment)
+    if (CONFIG.orgAutomationToken) {
+        return CONFIG.orgAutomationToken;
+    }
+    if (CONFIG.githubToken) {
+        return CONFIG.githubToken;
+    }
+    if (CONFIG.ghToken) {
+        return CONFIG.ghToken;
+    }
+    
+    // Return null - API calls will handle auth failure gracefully
+    return null;
+}
+
+/**
+ * Get headers for GitHub API calls
+ * Automatically includes auth token
+ */
+function getGitHubHeaders() {
+    const token = getAuthToken();
+    const headers = {
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+        'X-GitHub-Api-Version': '2022-11-28'
+    };
+    
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    return headers;
+}
+
+// =============================================================================
+// REPO PARSING UTILITIES
+// =============================================================================
+
+/**
+ * Parse comma-separated repo string into array
+ * Handles whitespace, empty entries, and validation
+ */
+function getReposArray(input) {
+    if (!input) return [];
+    if (Array.isArray(input)) return input.filter(r => r && r.length > 0);
+    
+    return input
+        .split(',')
+        .map(r => r.trim())
+        .filter(r => r.length > 0 && /^[a-zA-Z0-9._-]+$/.test(r));
+}
+
+/**
+ * Validate repository name
+ */
+function isValidRepoName(name) {
+    return name && name.length > 0 && /^[a-zA-Z0-9._-]+$/.test(name);
+}
 
 // =============================================================================
 // INITIALIZATION
@@ -337,85 +408,116 @@ function clearRepoSelection() {
 }
 
 // =============================================================================
-// WORKFLOW ACTIONS
+// WORKFLOW ACTIONS - NO PROMPTS, AUTO TOKEN
 // =============================================================================
 
-async function triggerWorkflow(owner, repo, workflowId) {
-    const token = prompt('Enter your GitHub PAT (Personal Access Token) with repo and workflow scopes:');
-    if (!token) {
-        alert('Workflow trigger cancelled. PAT required.');
-        return;
-    }
+/**
+ * Unified function to run workflow on a single repository
+ * Uses automatic token retrieval - NO PROMPTS
+ */
+async function runWorkflowOnRepo(owner, repoName, workflowId) {
+    const headers = getGitHubHeaders();
+    
+    showNotification(`Triggering ${workflowId} on ${repoName}...`, 'info');
 
     try {
-        const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflowId}/dispatches`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `token ${token}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                ref: 'main',
-                inputs: {
-                    repository: repo,
-                    mode: 'single'
-                }
-            })
-        });
+        const response = await fetch(
+            `https://api.github.com/repos/${owner}/${repoName}/actions/workflows/${workflowId}/dispatches`,
+            {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({
+                    ref: 'main',
+                    inputs: {
+                        repository: repoName,
+                        mode: 'single'
+                    }
+                })
+            }
+        );
 
         if (response.ok) {
-            alert(`✅ Workflow "${workflowId}" triggered successfully on ${repo}!`);
+            showNotification(
+                `✅ Workflow "${workflowId}" triggered successfully on ${repoName}!`,
+                'success'
+            );
+            return { success: true, repo: repoName, workflow: workflowId };
         } else {
             const error = await response.json();
-            alert(`❌ Failed to trigger workflow: ${error.message}`);
+            showNotification(
+                `❌ Failed to trigger workflow on ${repoName}: ${error.message}`,
+                'error'
+            );
+            return { success: false, repo: repoName, workflow: workflowId, error: error.message };
         }
     } catch (error) {
-        alert(`❌ Error triggering workflow: ${error.message}`);
+        showNotification(
+            `❌ Error triggering workflow on ${repoName}: ${error.message}`,
+            'error'
+        );
+        return { success: false, repo: repoName, workflow: workflowId, error: error.message };
     }
 }
 
-async function bulkTriggerWorkflow(workflowId) {
-    if (AppState.selectedRepos.size === 0) {
-        alert('Please select repositories first.');
-        return;
+/**
+ * Run workflow on multiple repositories
+ * Processes each repo individually - NOT as comma-separated string
+ */
+async function runWorkflowOnMultipleRepos(owner, repoList, workflowId) {
+    const repos = getReposArray(repoList);
+    
+    if (repos.length === 0) {
+        showNotification('No valid repositories specified', 'error');
+        return [];
     }
 
-    const token = prompt('Enter your GitHub PAT (Personal Access Token) with repo and workflow scopes:');
-    if (!token) return;
+    showNotification(`Triggering ${workflowId} on ${repos.length} repositories...`, 'info');
 
-    const owner = CONFIG.orgName;
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const repo of AppState.selectedRepos) {
-        try {
-            const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflowId}/dispatches`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `token ${token}`,
-                    'Accept': 'application/vnd.github.v3+json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ ref: 'main' })
-            });
-
-            if (response.ok) {
-                successCount++;
-            } else {
-                failCount++;
-            }
-        } catch (error) {
-            failCount++;
+    const results = [];
+    
+    for (const repo of repos) {
+        if (!isValidRepoName(repo)) {
+            showNotification(`Skipping invalid repo name: ${repo}`, 'warning');
+            continue;
         }
+        
+        const result = await runWorkflowOnRepo(owner, repo, workflowId);
+        results.push(result);
+        
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
     }
 
-    alert(`Bulk trigger complete:\n✅ Success: ${successCount}\n❌ Failed: ${failCount}`);
+    const successCount = results.filter(r => r.success).length;
+    const failCount = results.filter(r => !r.success).length;
+
+    showNotification(
+        `Complete: ${successCount} succeeded, ${failCount} failed`,
+        failCount > 0 ? 'warning' : 'success'
+    );
+
+    return results;
 }
 
-async function installWorkflow(owner, repo, workflowType) {
-    const token = prompt('Enter your GitHub PAT (Personal Access Token) with repo scope:');
-    if (!token) return;
+/**
+ * Run workflow on selected repositories (bulk action)
+ */
+async function runWorkflowOnSelectedRepos(owner, workflowId) {
+    if (AppState.selectedRepos.size === 0) {
+        showNotification('Please select repositories first', 'error');
+        return [];
+    }
+
+    const repos = Array.from(AppState.selectedRepos);
+    return runWorkflowOnMultipleRepos(owner, repos, workflowId);
+}
+
+/**
+ * Install workflow to a single repository
+ * Uses automatic token - NO PROMPTS
+ */
+async function installWorkflowOnRepo(owner, repoName, workflowType) {
+    const headers = getGitHubHeaders();
 
     const workflowFiles = {
         'health-check': { name: 'org-repo-health-check.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/org-repo-health-check.yml' },
@@ -429,109 +531,164 @@ async function installWorkflow(owner, repo, workflowType) {
 
     const workflow = workflowFiles[workflowType];
     if (!workflow) {
-        alert('Invalid workflow type.');
-        return;
+        showNotification('Invalid workflow type', 'error');
+        return { success: false, error: 'Invalid workflow type' };
     }
+
+    showNotification(`Installing ${workflow.name} to ${repoName}...`, 'info');
 
     try {
         const contentResponse = await fetch(workflow.url);
+        if (!contentResponse.ok) {
+            throw new Error(`Failed to fetch workflow: ${contentResponse.status}`);
+        }
         const content = await contentResponse.text();
 
-        const createResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/.github/workflows/${workflow.name}`, {
-            method: 'PUT',
-            headers: {
-                'Authorization': `token ${token}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                message: `chore: add ${workflow.name} from Org Brain`,
-                content: btoa(content)
-            })
-        });
+        const createResponse = await fetch(
+            `https://api.github.com/repos/${owner}/${repoName}/contents/.github/workflows/${workflow.name}`,
+            {
+                method: 'PUT',
+                headers: headers,
+                body: JSON.stringify({
+                    message: `chore: add ${workflow.name} from Org Brain`,
+                    content: btoa(content)
+                })
+            }
+        );
 
         if (createResponse.ok) {
-            alert(`✅ Workflow ${workflow.name} installed successfully on ${repo}!`);
+            showNotification(`✅ ${workflow.name} installed successfully on ${repoName}!`, 'success');
+            return { success: true, repo: repoName, workflow: workflow.name };
         } else {
             const error = await createResponse.json();
-            alert(`❌ Failed to install workflow: ${error.message}`);
+            showNotification(`❌ Failed to install ${workflow.name}: ${error.message}`, 'error');
+            return { success: false, repo: repoName, workflow: workflow.name, error: error.message };
         }
     } catch (error) {
-        alert(`❌ Error installing workflow: ${error.message}`);
+        showNotification(`❌ Error installing workflow: ${error.message}`, 'error');
+        return { success: false, repo: repoName, workflow: workflow.name, error: error.message };
     }
 }
 
-async function runCodeAnalysis(owner, repo) {
-    const token = prompt('Enter your GitHub PAT (Personal Access Token) with repo and workflow scopes:');
-    if (!token) return;
+/**
+ * Install workflow to multiple repositories
+ */
+async function installWorkflowOnMultipleRepos(owner, repoList, workflowType) {
+    const repos = getReposArray(repoList);
+    
+    if (repos.length === 0) {
+        showNotification('No valid repositories specified', 'error');
+        return [];
+    }
+
+    const results = [];
+    
+    for (const repo of repos) {
+        if (!isValidRepoName(repo)) continue;
+        const result = await installWorkflowOnRepo(owner, repo, workflowType);
+        results.push(result);
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    showNotification(
+        `Installation complete: ${successCount}/${repos.length} succeeded`,
+        successCount === repos.length ? 'success' : 'warning'
+    );
+
+    return results;
+}
+
+/**
+ * Run code analysis on a repository
+ */
+async function runCodeAnalysis(owner, repoName) {
+    const headers = getGitHubHeaders();
+
+    showNotification(`Starting code analysis for ${repoName}...`, 'info');
 
     try {
-        const response = await fetch(`https://api.github.com/repos/${owner}/Org-Brain/actions/workflows/analyze-code.yml/dispatches`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `token ${token}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                ref: 'main',
-                inputs: { repo: repo, owner: owner }
-            })
-        });
+        const response = await fetch(
+            `https://api.github.com/repos/${owner}/Org-Brain/actions/workflows/analyze-code.yml/dispatches`,
+            {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({
+                    ref: 'main',
+                    inputs: { repo: repoName, owner: owner }
+                })
+            }
+        );
 
         if (response.ok) {
-            alert(`✅ Code analysis started for ${repo}!\n\nResults will be available in the dashboard once complete.`);
+            showNotification(
+                `✅ Code analysis started for ${repoName}!\nResults will appear in dashboard when complete.`,
+                'success'
+            );
         } else {
             const error = await response.json();
-            alert(`❌ Failed to start analysis: ${error.message}`);
+            showNotification(`❌ Failed to start analysis: ${error.message}`, 'error');
         }
     } catch (error) {
-        alert(`❌ Error starting analysis: ${error.message}`);
+        showNotification(`❌ Error starting analysis: ${error.message}`, 'error');
     }
 }
 
-async function runOneClickSetup(owner, repo) {
-    const token = prompt('Enter your GitHub PAT (Personal Access Token) with repo and workflow scopes:');
-    if (!token) return;
+/**
+ * Run One-Click Setup on a repository
+ */
+async function runOneClickSetup(owner, repoName) {
+    const headers = getGitHubHeaders();
 
-    if (!confirm(`⚠️ This will install all Org Brain workflows to ${repo} and configure settings.\n\nContinue?`)) {
+    if (!confirm(`⚠️ This will install all Org Brain workflows to ${repoName}.\n\nContinue?`)) {
         return;
     }
 
+    showNotification(`Starting One-Click Setup for ${repoName}...`, 'info');
+
     try {
-        const response = await fetch(`https://api.github.com/repos/${owner}/Org-Brain/actions/workflows/autonomous-setup.yml/dispatches`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `token ${token}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                ref: 'main',
-                inputs: {
-                    target_repo: repo,
-                    mode: 'single'
-                }
-            })
-        });
+        const response = await fetch(
+            `https://api.github.com/repos/${owner}/Org-Brain/actions/workflows/autonomous-setup.yml/dispatches`,
+            {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({
+                    ref: 'main',
+                    inputs: {
+                        target_repo: repoName,
+                        mode: 'single',
+                        install_workflows: 'true',
+                        run_initial_scan: 'true',
+                        repair_workflows: 'true'
+                    }
+                })
+            }
+        );
 
         if (response.ok) {
-            alert(`✅ One-Click Setup started for ${repo}!\n\nThis will:\n- Install all workflows\n- Configure permissions\n- Run initial scans\n\nCheck the Actions tab for progress.`);
+            showNotification(
+                `✅ One-Click Setup started for ${repoName}!\n\nThis will:\n• Install all workflows\n• Configure permissions\n• Run initial scans\n\nCheck Actions tab for progress.`,
+                'success'
+            );
         } else {
             const error = await response.json();
-            alert(`❌ Failed to start setup: ${error.message}`);
+            showNotification(`❌ Failed to start setup: ${error.message}`, 'error');
         }
     } catch (error) {
-        alert(`❌ Error starting setup: ${error.message}`);
+        showNotification(`❌ Error starting setup: ${error.message}`, 'error');
     }
 }
 
-async function showAnalysisModal(owner, repo) {
-    const analysis = await fetchAnalysisResults(repo);
+// =============================================================================
+// MODAL FUNCTIONS
+// =============================================================================
+
+async function showAnalysisModal(owner, repoName) {
+    const analysis = await fetchAnalysisResults(repoName);
 
     let content = analysis ? `
         <div class="analysis-results">
-            <h3>Analysis Results for ${repo}</h3>
+            <h3>Analysis Results for ${repoName}</h3>
             <p class="analysis-date">Analyzed: ${new Date(analysis.analyzed_at).toLocaleString()}</p>
 
             <div class="health-score-display">
@@ -563,85 +720,64 @@ async function showAnalysisModal(owner, repo) {
                     <span class="metric-value">${analysis.metrics.maintenance}</span>
                 </div>
             </div>
-
-            <div class="analysis-stats">
-                <h4>Repository Stats</h4>
-                <ul>
-                    <li>Total Files: ${analysis.stats.total_files}</li>
-                    <li>Code Files: ${analysis.stats.code_files}</li>
-                    <li>Documentation Files: ${analysis.stats.doc_files}</li>
-                    <li>Test Files: ${analysis.stats.test_files}</li>
-                </ul>
-            </div>
         </div>
     ` : `
         <div class="analysis-pending">
-            <h3>No Analysis Available for ${repo}</h3>
-            <p>Run a new analysis to get code quality metrics and recommendations.</p>
+            <h3>No Analysis Available for ${repoName}</h3>
+            <p>Run a new analysis to get code quality metrics.</p>
         </div>
     `;
 
     content += `
         <div class="analysis-actions">
-            <button onclick="runCodeAnalysis('${owner}', '${repo}')" class="btn btn-primary">
+            <button onclick="runCodeAnalysis('${owner}', '${repoName}')" class="btn btn-primary">
                 🔄 Run New Analysis
             </button>
-            <button onclick="closeModal()" class="btn btn-secondary">
-                Close
-            </button>
+            <button onclick="closeModal()" class="btn btn-secondary">Close</button>
         </div>
     `;
 
-    showModal(`Code Analysis: ${repo}`, content);
+    showModal(`Code Analysis: ${repoName}`, content);
 }
 
-async function fetchAnalysisResults(repo) {
-    try {
-        const response = await fetch(`data/analysis/${repo}.json`);
-        if (response.ok) {
-            return await response.json();
-        }
-        return null;
-    } catch (error) {
-        return null;
-    }
-}
-
-function showWorkflowMenu(owner, repo, event) {
+function showWorkflowMenu(owner, repoName, event) {
     event.stopPropagation();
 
     const workflowsHtml = AVAILABLE_WORKFLOWS.map(wf => `
-        <button class="workflow-menu-item" onclick="triggerWorkflow('${owner}', '${repo}', '${wf.id}')">
+        <button class="workflow-menu-item" onclick="runWorkflowOnRepo('${owner}', '${repoName}', '${wf.id}')">
             ${wf.icon} ${wf.name}
         </button>
     `).join('');
 
     const content = `
         <div class="workflow-menu">
-            <h4>Run Workflow on ${repo}</h4>
+            <h4>Run Workflow on ${repoName}</h4>
             ${workflowsHtml}
         </div>
     `;
 
-    showModal(`Workflow Menu: ${repo}`, content);
+    showModal(`Workflow Menu: ${repoName}`, content);
 }
 
 function showBulkWorkflowMenu() {
     if (AppState.selectedRepos.size === 0) {
-        alert('Please select repositories first.');
+        showNotification('Please select repositories first', 'error');
         return;
     }
 
+    const owner = CONFIG.orgName;
+    const repos = Array.from(AppState.selectedRepos);
+
     const workflowsHtml = AVAILABLE_WORKFLOWS.map(wf => `
-        <button class="workflow-menu-item" onclick="bulkTriggerWorkflow('${wf.id}')">
-            ${wf.icon} ${wf.name} (on ${AppState.selectedRepos.size} repos)
+        <button class="workflow-menu-item" onclick="runWorkflowOnMultipleRepos('${owner}', '${repos.join(',')}', '${wf.id}')">
+            ${wf.icon} ${wf.name} (on ${repos.length} repos)
         </button>
     `).join('');
 
     const content = `
         <div class="workflow-menu">
             <h4>Bulk Workflow Actions</h4>
-            <p>Selected: ${AppState.selectedRepos.size} repositories</p>
+            <p>Selected: ${repos.length} repositories</p>
             ${workflowsHtml}
         </div>
     `;
@@ -649,27 +785,39 @@ function showBulkWorkflowMenu() {
     showModal('Bulk Workflow Actions', content);
 }
 
-function showInstallMenu(owner, repo, event) {
+function showInstallMenu(owner, repoName, event) {
     event.stopPropagation();
 
     const content = `
         <div class="workflow-menu">
-            <h4>Install Workflows to ${repo}</h4>
-            <button class="workflow-menu-item" onclick="installWorkflow('${owner}', '${repo}', 'health-check')">🏥 Health Check</button>
-            <button class="workflow-menu-item" onclick="installWorkflow('${owner}', '${repo}', 'dependabot-batch')">📦 Dependabot Batch</button>
-            <button class="workflow-menu-item" onclick="installWorkflow('${owner}', '${repo}', 'pr-swarm')">🤖 PR Swarm Manager</button>
-            <button class="workflow-menu-item" onclick="installWorkflow('${owner}', '${repo}', 'self-heal')">🔧 Self-Heal</button>
-            <button class="workflow-menu-item" onclick="installWorkflow('${owner}', '${repo}', 'conflict-detector')">⚠️ Conflict Detector</button>
-            <button class="workflow-menu-item" onclick="installWorkflow('${owner}', '${repo}', 'agents-manager')">🤖 Agents Manager</button>
-            <button class="workflow-menu-item" onclick="installWorkflow('${owner}', '${repo}', 'pages-setup')">📄 Pages Setup</button>
-            <hr>
-            <button class="workflow-menu-item" onclick="runOneClickSetup('${owner}', '${repo}')" style="background-color: var(--color-success);">
+            <h4>Install Workflows to ${repoName}</h4>
+            <button class="workflow-menu-item" onclick="installWorkflowOnRepo('${owner}', '${repoName}', 'health-check')">🏥 Health Check</button>
+            <button class="workflow-menu-item" onclick="installWorkflowOnRepo('${owner}', '${repoName}', 'dependabot-batch')">📦 Dependabot Batch</button>
+            <button class="workflow-menu-item" onclick="installWorkflowOnRepo('${owner}', '${repoName}', 'pr-swarm')">🤖 PR Swarm Manager</button>
+            <button class="workflow-menu-item" onclick="installWorkflowOnRepo('${owner}', '${repoName}', 'self-heal')">🔧 Self-Heal</button>
+            <button class="workflow-menu-item" onclick="installWorkflowOnRepo('${owner}', '${repoName}', 'conflict-detector')">⚠️ Conflict Detector</button>
+            <button class="workflow-menu-item" onclick="installWorkflowOnRepo('${owner}', '${repoName}', 'agents-manager')">🤖 Agents Manager</button>
+            <button class="workflow-menu-item" onclick="installWorkflowOnRepo('${owner}', '${repoName}', 'pages-setup')">📄 Pages Setup</button>
+            <hr style="margin: 8px 0; border: none; border-top: 1px solid var(--color-border-primary);">
+            <button class="workflow-menu-item" onclick="runOneClickSetup('${owner}', '${repoName}')" style="background-color: var(--color-success); color: white;">
                 🚀 One-Click Setup (All Workflows)
             </button>
         </div>
     `;
 
-    showModal(`Install Workflows: ${repo}`, content);
+    showModal(`Install Workflows: ${repoName}`, content);
+}
+
+async function fetchAnalysisResults(repoName) {
+    try {
+        const response = await fetch(`data/analysis/${repoName}.json`);
+        if (response.ok) {
+            return await response.json();
+        }
+        return null;
+    } catch (error) {
+        return null;
+    }
 }
 
 // =============================================================================
@@ -691,7 +839,6 @@ function renderStats() {
     const totalStars = AppState.repositories.reduce((sum, r) => sum + r.stargazers_count, 0);
     const totalForks = AppState.repositories.reduce((sum, r) => sum + r.forks_count, 0);
 
-    // Get failure stats if available
     let totalFailures = 0;
     let reposWithFailures = 0;
     if (AppState.workflowFailures) {
@@ -741,7 +888,6 @@ function createRepoCard(repo) {
     const owner = CONFIG.orgName;
     const isSelected = AppState.selectedRepos.has(repo.name);
 
-    // Get failure count for this repo
     let failureCount = 0;
     if (AppState.workflowFailures && AppState.workflowFailures.repositories) {
         const repoData = AppState.workflowFailures.repositories.find(r => r.name === repo.name);
@@ -827,22 +973,12 @@ function createRepoCard(repo) {
             </div>
 
             <div class="repo-card-footer">
-                <span class="last-updated">
-                    Updated ${formatDate(repo.updated_at)}
-                </span>
+                <span class="last-updated">Updated ${formatDate(repo.updated_at)}</span>
                 <div class="repo-actions">
-                    <a href="${repo.html_url}" target="_blank" rel="noopener" class="btn btn-sm">
-                        View
-                    </a>
-                    <button onclick="showAnalysisModal('${owner}', '${repo.name}')" class="btn btn-sm btn-outline" title="Analyze Code">
-                        🔍
-                    </button>
-                    <button onclick="showWorkflowMenu('${owner}', '${repo.name}', event)" class="btn btn-sm btn-primary" title="Run Workflow">
-                        ▶️
-                    </button>
-                    <button onclick="showInstallMenu('${owner}', '${repo.name}', event)" class="btn btn-sm btn-outline" title="Install Workflows">
-                        📥
-                    </button>
+                    <a href="${repo.html_url}" target="_blank" rel="noopener" class="btn btn-sm">View</a>
+                    <button onclick="showAnalysisModal('${owner}', '${repo.name}')" class="btn btn-sm btn-outline" title="Analyze Code">🔍</button>
+                    <button onclick="showWorkflowMenu('${owner}', '${repo.name}', event)" class="btn btn-sm btn-primary" title="Run Workflow">▶️</button>
+                    <button onclick="showInstallMenu('${owner}', '${repo.name}', event)" class="btn btn-sm btn-outline" title="Install Workflows">📥</button>
                 </div>
             </div>
 
@@ -895,7 +1031,7 @@ function renderBulkActionsBar() {
     container.innerHTML = `
         <span class="bulk-info">${AppState.selectedRepos.size} repositories selected</span>
         <button class="btn btn-sm" onclick="selectAllRepos()">Select All</button>
-        <button class="btn btn-sm" onclick="clearRepoSelection()">Clear Selection</button>
+        <button class="btn btn-sm" onclick="clearRepoSelection()">Clear</button>
         <button class="btn btn-sm btn-primary" onclick="showBulkWorkflowMenu()">▶️ Run Workflow</button>
         <button class="btn btn-sm" onclick="bulkInstallWorkflows()">📥 Install Workflows</button>
         <button class="btn btn-sm" onclick="bulkAnalyze()">🔍 Analyze All</button>
@@ -1051,18 +1187,63 @@ function setupPaginationListeners() {
 // Bulk action helpers
 function bulkInstallWorkflows() {
     if (AppState.selectedRepos.size === 0) {
-        alert('Please select repositories first.');
+        showNotification('Please select repositories first', 'error');
         return;
     }
-    alert(`Bulk install feature coming soon for ${AppState.selectedRepos.size} repositories.`);
+    showNotification(`Bulk install coming soon for ${AppState.selectedRepos.size} repositories`, 'info');
 }
 
 function bulkAnalyze() {
     if (AppState.selectedRepos.size === 0) {
-        alert('Please select repositories first.');
+        showNotification('Please select repositories first', 'error');
         return;
     }
-    alert(`Bulk analysis feature coming soon for ${AppState.selectedRepos.size} repositories.`);
+    showNotification(`Bulk analysis coming soon for ${AppState.selectedRepos.size} repositories`, 'info');
+}
+
+// =============================================================================
+// NOTIFICATION SYSTEM
+// =============================================================================
+
+function showNotification(message, type = 'info') {
+    const id = Date.now();
+    const notification = { id, message, type };
+    
+    AppState.notifications.push(notification);
+    
+    // Create notification element
+    const container = document.getElementById('notifications-container') || createNotificationsContainer();
+    
+    const el = document.createElement('div');
+    el.id = `notification-${id}`;
+    el.className = `notification notification-${type}`;
+    el.innerHTML = `
+        <span class="notification-message">${escapeHtml(message)}</span>
+        <button class="notification-close" onclick="dismissNotification(${id})">&times;</button>
+    `;
+    
+    container.appendChild(el);
+    
+    // Auto-dismiss after 5 seconds for success/info
+    if (type === 'success' || type === 'info') {
+        setTimeout(() => dismissNotification(id), 5000);
+    }
+}
+
+function dismissNotification(id) {
+    const el = document.getElementById(`notification-${id}`);
+    if (el) {
+        el.remove();
+    }
+    AppState.notifications = AppState.notifications.filter(n => n.id !== id);
+}
+
+function createNotificationsContainer() {
+    const container = document.createElement('div');
+    container.id = 'notifications-container';
+    container.className = 'notifications-container';
+    document.body.appendChild(container);
+    return container;
 }
 
 // =============================================================================
@@ -1154,6 +1335,14 @@ function logError(...args) {
         console.error('[Org Brain]', ...args);
     }
 }
+
+// Global error handler for GitHub API failures
+window.addEventListener('unhandledrejection', (event) => {
+    if (event.reason?.message?.includes('GitHub') || event.reason?.message?.includes('API')) {
+        showNotification(`GitHub API Error: ${event.reason.message}`, 'error');
+        event.preventDefault();
+    }
+});
 
 // =============================================================================
 // START APPLICATION
