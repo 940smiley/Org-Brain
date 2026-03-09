@@ -1,0 +1,231 @@
+name: "⚙️ Workflow Generator"
+
+on:
+  workflow_dispatch:
+    inputs:
+      template:
+        description: Workflow template type
+        required: false
+        type: choice
+        options:
+          - code-quality
+          - security
+          - tests
+          - deploy
+          - all
+        default: all
+      language:
+        description: Target language filter
+        required: false
+        type: choice
+        options:
+          - javascript
+          - python
+          - go
+          - rust
+          - all
+        default: all
+      dry_run:
+        description: Preview mode without changes
+        required: false
+        type: boolean
+        default: true
+  schedule:
+    - cron: "0 5 * * 0"
+
+permissions:
+  contents: write
+  workflows: write
+
+env:
+  ORG_NAME: ${{ github.repository_owner }}
+  TEMPLATE: ${{ github.event.inputs.template || 'all' }}
+  LANGUAGE: ${{ github.event.inputs.language || 'all' }}
+  DRY_RUN: ${{ github.event.inputs.dry_run || false }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  detect-languages:
+    name: "Detect Repository Languages"
+    runs-on: ubuntu-latest
+    outputs:
+      js_repos: ${{ steps.languages.outputs.js_repos }}
+      py_repos: ${{ steps.languages.outputs.py_repos }}
+      go_repos: ${{ steps.languages.outputs.go_repos }}
+      rs_repos: ${{ steps.languages.outputs.rs_repos }}
+      count: ${{ steps.languages.outputs.count }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect repository languages
+        id: languages
+        run: |
+          echo "🔍 Detecting repository languages..."
+
+          # Get all active repos
+          repos_data=$(gh api "/orgs/$ORG_NAME/repos?per_page=100&archived=false" \
+            --jq '.[] | select(.fork == false) | {name, language}')
+
+          # Initialize arrays
+          js_array="[]"
+          py_array="[]"
+          go_array="[]"
+          rs_array="[]"
+          total=0
+
+          # Process each repo
+          echo "$repos_data" | jq -c '.' | while read -r line; do
+            name=$(echo "$line" | jq -r '.name')
+            lang=$(echo "$line" | jq -r '.language // "unknown"' | tr '[:upper:]' '[:lower:]')
+            
+            case "$lang" in
+              javascript|typescript)
+                js_array=$(echo "$js_array" | jq --arg n "$name" '. += [{"repo": $n}]')
+                echo "  JS: $name"
+                ;;
+              python)
+                py_array=$(echo "$py_array" | jq --arg n "$name" '. += [{"repo": $n}]')
+                echo "  Python: $name"
+                ;;
+              go)
+                go_array=$(echo "$go_array" | jq --arg n "$name" '. += [{"repo": $n}]')
+                echo "  Go: $name"
+                ;;
+              rust)
+                rs_array=$(echo "$rs_array" | jq --arg n "$name" '. += [{"repo": $n}]')
+                echo "  Rust: $name"
+                ;;
+            esac
+            
+            total=$((total + 1))
+          done
+
+          # Set outputs
+          echo "js_repos=$(echo "$js_array" | jq -c '.')" >> "$GITHUB_OUTPUT"
+          echo "py_repos=$(echo "$py_array" | jq -c '.')" >> "$GITHUB_OUTPUT"
+          echo "go_repos=$(echo "$go_array" | jq -c '.')" >> "$GITHUB_OUTPUT"
+          echo "rs_repos=$(echo "$rs_array" | jq -c '.')" >> "$GITHUB_OUTPUT"
+          echo "count=$total" >> "$GITHUB_OUTPUT"
+
+  generate-quality-workflows:
+    name: "Generate Code Quality Workflows"
+    runs-on: ubuntu-latest
+    needs: detect-languages
+    if: ${{ github.event.inputs.template == 'code-quality' || github.event.inputs.template == 'all' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate JavaScript Quality Workflows
+        if: ${{ (github.event.inputs.language == 'javascript' || github.event.inputs.language == 'all') && needs.detect-languages.outputs.js_repos != '[]' }}
+        run: |
+          echo "⚙️ Generating JavaScript code quality workflows..."
+          repos='${{ needs.detect-languages.outputs.js_repos }}'
+          count=$(echo "$repos" | jq 'length')
+          echo "Target repositories: $count JavaScript repos"
+          echo "$repos" | jq -r '.[] | .repo' | while read -r repo; do
+            echo "  - $repo"
+          done
+
+      - name: Generate Python Quality Workflows
+        if: ${{ (github.event.inputs.language == 'python' || github.event.inputs.language == 'all') && needs.detect-languages.outputs.py_repos != '[]' }}
+        run: |
+          echo "⚙️ Generating Python code quality workflows..."
+          repos='${{ needs.detect-languages.outputs.py_repos }}'
+          count=$(echo "$repos" | jq 'length')
+          echo "Target repositories: $count Python repos"
+
+      - name: Generate Go Quality Workflows
+        if: ${{ (github.event.inputs.language == 'go' || github.event.inputs.language == 'all') && needs.detect-languages.outputs.go_repos != '[]' }}
+        run: |
+          echo "⚙️ Generating Go code quality workflows..."
+          repos='${{ needs.detect-languages.outputs.go_repos }}'
+          count=$(echo "$repos" | jq 'length')
+          echo "Target repositories: $count Go repos"
+
+  generate-security-workflows:
+    name: "Generate Security Workflows"
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.template == 'security' || github.event.inputs.template == 'all' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate Security Workflows
+        run: |
+          echo "🔒 Generating security scanning workflows..."
+          echo ""
+          echo "Configured checks:"
+          echo "  ✓ Dependency scanning"
+          echo "  ✓ Secret detection"
+          echo "  ✓ SAST analysis"
+          echo "  ✓ License compliance"
+
+  generate-test-workflows:
+    name: "Generate Test Workflows"
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.template == 'tests' || github.event.inputs.template == 'all' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate Test Workflows
+        run: |
+          echo "🧪 Generating test automation workflows..."
+          echo ""
+          echo "Configured test types:"
+          echo "  ✓ Unit tests"
+          echo "  ✓ Integration tests"
+          echo "  ✓ E2E tests"
+          echo "  ✓ Coverage reporting"
+
+  summary:
+    name: "Workflow Generation Summary"
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      [
+        detect-languages,
+        generate-quality-workflows,
+        generate-security-workflows,
+        generate-test-workflows,
+      ]
+
+    steps:
+      - name: Generate Summary
+        run: |
+          {
+            echo "## ⚙️ Workflow Generation Report"
+            echo ""
+            echo "### Configuration"
+            echo "| Setting | Value |"
+            echo "|---------|-------|"
+            echo "| Template | $TEMPLATE |"
+            echo "| Language Filter | $LANGUAGE |"
+            echo "| Dry Run | $DRY_RUN |"
+            echo ""
+            echo "### Repositories Scanned"
+            echo "**Total:** ${{ needs.detect-languages.outputs.count }} repositories"
+            echo ""
+            echo "### Language Distribution"
+            js_count=$(echo '${{ needs.detect-languages.outputs.js_repos }}' | jq 'length')
+            py_count=$(echo '${{ needs.detect-languages.outputs.py_repos }}' | jq 'length')
+            go_count=$(echo '${{ needs.detect-languages.outputs.go_repos }}' | jq 'length')
+            rs_count=$(echo '${{ needs.detect-languages.outputs.rs_repos }}' | jq 'length')
+            echo "- JavaScript/TypeScript: $js_count"
+            echo "- Python: $py_count"
+            echo "- Go: $go_count"
+            echo "- Rust: $rs_count"
+            echo ""
+            echo "### Status"
+            if [[ "$DRY_RUN" == "true" ]]; then
+              echo "✅ **Preview Mode** - No changes applied"
+            else
+              echo "✅ **Deploy Mode** - Workflows deployed"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

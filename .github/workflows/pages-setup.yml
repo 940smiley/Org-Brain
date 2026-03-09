@@ -1,0 +1,95 @@
+name: "📄 Pages Auto-Setup"
+
+on:
+  schedule:
+    - cron: "0 2 * * 0"
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "Repository name (leave empty for all)"
+        required: false
+        type: string
+      template:
+        description: "Template to deploy"
+        required: false
+        type: choice
+        options:
+          - documentation
+          - portfolio
+          - blog
+          - project
+      ai_customize:
+        description: "Request AI customization"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pages: write
+
+env:
+  ORG_NAME: ${{ github.repository_owner }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  discover:
+    name: "Discover Pages Candidates"
+    runs-on: ubuntu-latest
+    outputs:
+      candidates: ${{ steps.discover.outputs.candidates }}
+      count: ${{ steps.discover.outputs.count }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Find repos without Pages
+        id: discover
+        run: |
+          echo "🔍 Finding repos without Pages..."
+          candidates="[]"
+          count=0
+
+          repos=$(gh api "/orgs/$ORG_NAME/repos?per_page=100" --jq '[.[] | select(.archived == false) | .name]')
+
+          for repo in $(echo $repos | jq -r '.[]'); do
+            if ! gh api "/repos/$ORG_NAME/$repo/pages" 2>/dev/null | jq -e . >/dev/null; then
+              candidates=$(echo "$candidates" | jq --arg r "$repo" '. += [$r]')
+              count=$((count+1))
+            fi
+          done
+
+          echo "count=$count" >> $GITHUB_OUTPUT
+          echo "candidates=$(echo "$candidates" | jq -c)" >> $GITHUB_OUTPUT
+
+  setup:
+    name: "Setup Pages"
+    runs-on: ubuntu-latest
+    needs: discover
+    if: ${{ needs.discover.outputs.count > 0 }}
+    strategy:
+      max-parallel: 5
+      fail-fast: false
+      matrix:
+        repo: ${{ fromJson(needs.discover.outputs.candidates) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable Pages
+        run: |
+          echo "📄 Enabling Pages for ${{ matrix.repo }}"
+
+          default=$(gh api "/repos/$ORG_NAME/${{ matrix.repo }}" --jq '.default_branch')
+          latest=$(gh api "/repos/$ORG_NAME/${{ matrix.repo }}/commits?per_page=1" --jq '.[0].sha')
+
+          if ! gh api "/repos/$ORG_NAME/${{ matrix.repo }}/branches/gh-pages" 2>/dev/null | jq -e . >/dev/null; then
+            gh api -X POST "/repos/$ORG_NAME/${{ matrix.repo }}/git/refs" \
+              -F ref='refs/heads/gh-pages' \
+              -F sha="$latest"
+          fi
+
+          gh api -X POST "/repos/$ORG_NAME/${{ matrix.repo }}/pages" \
+            -F source='{"branch":"gh-pages"}'
+
+          echo "✅ Pages enabled"

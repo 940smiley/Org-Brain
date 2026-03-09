@@ -1,0 +1,109 @@
+{
+  "global": {
+    "orgName": "940smiley",
+    "description": "Autonomous repository management configuration",
+    "version": "1.0.0",
+    "lastUpdated": "2024-01-01T00:00:00Z",
+    "features": {
+      "enablePagesAutoSetup": true,
+      "enableWorkflowGeneration": true,
+      "enableAutonomousAgents": true,
+      "enableAICustomization": true
+    }
+  },
+  "defaultRepoFeatures": {
+    "pages": {
+      "enabled": false,
+      "source": "gh-pages",
+      "theme": "minimal",
+      "customDomain": null
+    },
+    "workflows": {
+      "enabled": true,
+      "autoGenerate": false,
+      "templates": ["code-quality", "tests", "security"]
+    },
+    "agents": {
+      "enabled": false,
+      "autonomyLevel": "manual",
+      "features": []
+    },
+    "aiCustomization": {
+      "enabled": false,
+      "suggestions": true,
+      "autoApply": false
+    }
+  },
+  "repositories": {
+    "example-repo": {
+      "enabled": true,
+      "description": "Example repository configuration",
+      "pages": {
+        "enabled": false,
+        "source": "gh-pages",
+        "theme": "minimal",
+        "customDomain": null,
+        "excludeDirs": ["node_modules", ".git", "dist"]
+      },
+      "workflows": {
+        "enabled": true,
+        "autoGenerate": false,
+        "templates": []
+      },
+      "agents": {
+        "enabled": false,
+        "autonomyLevel": "manual",
+        "features": [
+          "dependency-updates",
+          "code-quality",
+          "documentation"
+        ]
+      },
+      "aiCustomization": {
+        "enabled": false,
+        "autoSuggestions": false,
+        "customizationPrompt": ""
+      }
+    }
+  },
+  "templates": {
+    "pages": {
+      "minimal": {
+        "name": "Minimal Theme",
+        "description": "Clean, minimal GitHub Pages theme",
+        "files": {
+          "_config.yml": "theme: jekyll-theme-minimal\n",
+          "README.md": "# Your Project\n\nProject description here.\n"
+        }
+      },
+      "slate": {
+        "name": "Slate Theme",
+        "description": "Dark theme for GitHub Pages",
+        "files": {
+          "_config.yml": "theme: jekyll-theme-slate\n",
+          "README.md": "# Your Project\n\nProject description here.\n"
+        }
+      }
+    },
+    "workflows": {
+      "code-quality": {
+        "name": "Code Quality",
+        "description": "Lint, format, and test checks",
+        "triggers": ["push", "pull_request"],
+        "jobs": ["lint", "format", "test"]
+      },
+      "security": {
+        "name": "Security Scanning",
+        "description": "SAST, dependency scanning, secret detection",
+        "triggers": ["push", "schedule"],
+        "jobs": ["secret-scan", "dependency-check", "sast"]
+      },
+      "deploy": {
+        "name": "Automated Deployment",
+        "description": "Build and deploy on push to main",
+        "triggers": ["push"],
+        "jobs": ["build", "deploy"]
+      }
+    }
+  }
+}

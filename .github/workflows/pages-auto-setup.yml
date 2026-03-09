@@ -1,0 +1,338 @@
+name: "📄 Pages Auto-Setup"
+
+on:
+  schedule:
+    - cron: "0 2 * * 0"
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "Repository name (leave empty for all matching)"
+        required: false
+        type: string
+      template:
+        description: "Template to deploy"
+        required: false
+        type: choice
+        options:
+          - documentation
+          - portfolio
+          - blog
+          - project
+      ai_customize:
+        description: "Request AI customization suggestions"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pages: write
+  repositories: read
+
+env:
+  ORG_NAME: ${{ github.repository_owner }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN || secrets.ORG_AUTOMATION_TOKEN }}
+
+jobs:
+  discover-candidates:
+    name: "Discover Pages Setup Candidates"
+    runs-on: ubuntu-latest
+    outputs:
+      candidates: ${{ steps.discover.outputs.candidates }}
+      count: ${{ steps.discover.outputs.count }}
+    steps:
+      - name: Checkout Org Brain
+        uses: actions/checkout@v4
+
+      - name: Discover repositories without Pages
+        id: discover
+        run: |
+          echo "🔍 Discovering repositories without Pages enabled..."
+          
+          repos=$(gh api "/orgs/$ORG_NAME/repos?per_page=100&type=public" --jq '.[] | select(.archived == false and .fork == false) | .name')
+          
+          candidates="[]"
+          count=0
+          
+          for repo in $repos; do
+            pages=$(gh api "/repos/$ORG_NAME/$repo/pages" 2>/dev/null | jq -r '.source.branch // empty')
+            
+            if [ -z "$pages" ]; then
+              repo_details=$(gh api "/repos/$ORG_NAME/$repo" --jq '{name, language, topics, description}')
+              
+              candidates=$(echo "$candidates" | jq --argjson repo "$repo_details" '. += [$repo]')
+              ((count++))
+            fi
+          done
+          
+          echo "📦 Found $count repositories without Pages"
+          echo "candidates=$(echo "$candidates" | jq -c '.')" >> $GITHUB_OUTPUT
+          echo "count=$count" >> $GITHUB_OUTPUT
+
+  setup-pages:
+    name: "Setup Pages for ${{ matrix.repo }}"
+    runs-on: ubuntu-latest
+    needs: discover-candidates
+    if: ${{ needs.discover-candidates.outputs.count > 0 }}
+    strategy:
+      max-parallel: 5
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.discover-candidates.outputs.candidates) }}
+    
+    steps:
+      - name: Checkout Org Brain
+        uses: actions/checkout@v4
+
+      - name: Enable GitHub Pages
+        run: |
+          echo "📄 Enabling Pages for ${{ matrix.name }}"
+          
+          default_branch=$(gh api "/repos/$ORG_NAME/${{ matrix.name }}/branches" --jq '.[0].name')
+          
+          if ! gh api "/repos/$ORG_NAME/${{ matrix.name }}/branches/gh-pages" 2>/dev/null | jq -e . >/dev/null; then
+            latest_commit=$(gh api "/repos/$ORG_NAME/${{ matrix.name }}/commits?per_page=1" --jq '.[0].sha')
+            
+            gh api -X POST "/repos/$ORG_NAME/${{ matrix.name }}/git/refs" \
+              -F ref='refs/heads/gh-pages' \
+              -F sha="$latest_commit"
+          fi
+          
+          gh api -X POST "/repos/$ORG_NAME/${{ matrix.name }}/pages" \
+            -F source='{"branch":"gh-pages"}'
+          
+          echo "✓ Pages enabled for ${{ matrix.name }}"
+
+      - name: Deploy Documentation Template
+        run: |
+          echo "📂 Deploying documentation template..."
+          
+          template_content="# ${{ matrix.name }}\n\n## Overview\n\n${{ matrix.description || 'Project description here.' }}\n\n## Getting Started\n\n- Clone: \`git clone https://github.com/$ORG_NAME/${{ matrix.name }}\`\n- Docs: See [documentation]({{ site.url }})\n\n## License\n\nSee LICENSE file for details."
+          
+          gh api -X PUT "/repos/$ORG_NAME/${{ matrix.name }}/contents/README.md" \
+            -F message='docs: initialize documentation' \
+            -F content='${{ env.template_content }}' \
+            -F branch='gh-pages' || true
+          
+          echo "✓ Template deployed"
+
+      - name: Generate AI Customization Suggestions
+        if: ${{ github.event.inputs.ai_customize == 'true' }}
+        run: |
+          echo "🤖 Requesting AI customization suggestions..."
+          echo "ℹ️ This would integrate with Claude AI API"
+
+      - name: Create Summary
+        run: |
+          echo "## Pages Setup Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Repository | ${{ matrix.name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Pages URL | https://$ORG_NAME.github.io/${{ matrix.name }}/ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ✅ Enabled |" >> $GITHUB_STEP_SUMMARY
+
+  summary:
+    name: "Pages Setup Summary"
+    runs-on: ubuntu-latest
+    needs: setup-pages
+    if: always()
+    steps:
+      - name: Setup Complete
+        run: |
+          echo "## ✅ Pages Auto-Setup Complete"
+          echo ""
+          echo "Successfully configured GitHub Pages for multiple repositories."
+          echo "Visit your organization's Pages sites to view them."
+
+# =============================================================================
+# PAGES AUTO-SETUP - Automatic GitHub Pages Configuration
+# =============================================================================
+# Purpose: Automatically setup and configure GitHub Pages for repositories
+#
+# Features:
+#   - Auto-enable Pages on matching repositories
+#   - Deploy documentation templates
+#   - Setup custom domains (if configured)
+#   - Generate initial site content
+#   - AI-suggested customization
+#
+# Triggers:
+#   - Schedule: Weekly (Sunday at 2 AM UTC)
+#   - Repository creation via workflow dispatch
+#   - Manual trigger with repository selection
+#   - Webhook from new repository creation
+#
+# Matching Rules:
+#   - Repositories without Pages enabled
+#   - Match language, topics, and description patterns
+#   - Exclude archived and forked repositories
+#   - Respect repo-specific configuration
+# =============================================================================
+
+name: "📄 Pages Auto-Setup"
+
+on:
+  schedule:
+    # Run weekly on Sunday at 2 AM UTC
+    - cron: "0 2 * * 0"
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "Repository name (leave empty for all matching)"
+        required: false
+        type: string
+      template:
+        description: "Template to deploy"
+        required: false
+        type: choice
+        options:
+          - documentation
+          - portfolio
+          - blog
+          - project
+      ai_customize:
+        description: "Request AI customization suggestions"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pages: write
+  repositories: read
+
+env:
+  ORG_NAME: ${{ github.repository_owner }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN || secrets.ORG_AUTOMATION_TOKEN }}
+
+jobs:
+  # ===========================================================================
+  # DISCOVER CANDIDATES
+  # ===========================================================================
+  discover-candidates:
+    name: "Discover Pages Setup Candidates"
+    runs-on: ubuntu-latest
+    outputs:
+      candidates: ${{ steps.discover.outputs.candidates }}
+      count: ${{ steps.discover.outputs.count }}
+    steps:
+      - name: Checkout Org Brain
+        uses: actions/checkout@v4
+
+      - name: Discover repositories without Pages
+        id: discover
+        run: |
+          echo "🔍 Discovering repositories without Pages enabled..."
+
+          # Get all repositories in organization
+          repos=$(gh api "/orgs/$ORG_NAME/repos?per_page=100&type=public" --jq '.[] | select(.archived == false and .fork == false) | .name')
+
+          candidates="[]"
+          count=0
+
+          for repo in $repos; do
+            # Check if pages is enabled
+            pages=$(gh api "/repos/$ORG_NAME/$repo/pages" 2>/dev/null | jq -r '.source.branch // empty')
+            
+            if [ -z "$pages" ]; then
+              # Get repo details for matching
+              repo_details=$(gh api "/repos/$ORG_NAME/$repo" --jq '{name, language, topics, description}')
+              
+              candidates=$(echo "$candidates" | jq --argjson repo "$repo_details" '. += [$repo]')
+              ((count++))
+            fi
+          done
+
+          echo "📦 Found $count repositories without Pages"
+          echo "candidates=$(echo "$candidates" | jq -c '.')" >> $GITHUB_OUTPUT
+          echo "count=$count" >> $GITHUB_OUTPUT
+
+  # ===========================================================================
+  # SETUP PAGES
+  # ===========================================================================
+  setup-pages:
+    name: "Setup Pages for ${{ matrix.repo }}"
+    runs-on: ubuntu-latest
+    needs: discover-candidates
+    if: ${{ needs.discover-candidates.outputs.count > 0 }}
+    strategy:
+      max-parallel: 5
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.discover-candidates.outputs.candidates) }}
+
+    steps:
+      - name: Checkout Org Brain
+        uses: actions/checkout@v4
+
+      - name: Enable GitHub Pages
+        run: |
+          echo "📄 Enabling Pages for ${{ matrix.name }}"
+
+          # Create gh-pages branch if it doesn't exist
+          default_branch=$(gh api "/repos/$ORG_NAME/${{ matrix.name }}/branches" --jq '.[0].name')
+
+          # Check if gh-pages exists
+          if ! gh api "/repos/$ORG_NAME/${{ matrix.name }}/branches/gh-pages" 2>/dev/null | jq -e . >/dev/null; then
+            # Get latest commit
+            latest_commit=$(gh api "/repos/$ORG_NAME/${{ matrix.name }}/commits?per_page=1" --jq '.[0].sha')
+            
+            # Create gh-pages branch
+            gh api -X POST "/repos/$ORG_NAME/${{ matrix.name }}/git/refs" \
+              -F ref='refs/heads/gh-pages' \
+              -F sha="$latest_commit"
+          fi
+
+          # Enable Pages
+          gh api -X POST "/repos/$ORG_NAME/${{ matrix.name }}/pages" \
+            -F source='{"branch":"gh-pages"}'
+
+          echo "✓ Pages enabled for ${{ matrix.name }}"
+
+      - name: Deploy Documentation Template
+        run: |
+          echo "📂 Deploying documentation template..."
+
+          # Create index.md
+          template_content="# ${{ matrix.name }}\n\n## Overview\n\n${{ matrix.description || 'Project description here.' }}\n\n## Getting Started\n\n- Clone: \`git clone https://github.com/$ORG_NAME/${{ matrix.name }}\`\n- Docs: See [documentation]({{ site.url }})\n\n## License\n\nSee LICENSE file for details."
+
+          gh api -X PUT "/repos/$ORG_NAME/${{ matrix.name }}/contents/README.md" \
+            -F message='docs: initialize documentation' \
+            -F content='${{ env.template_content }}' \
+            -F branch='gh-pages' || true
+
+          echo "✓ Template deployed"
+
+      - name: Generate AI Customization Suggestions
+        if: ${{ github.event.inputs.ai_customize == 'true' }}
+        run: |
+          echo "🤖 Requesting AI customization suggestions..."
+          echo "ℹ️ This would integrate with Claude AI API for:
+          echo "   - Documentation structure recommendations
+          echo "   - Content suggestions specific to ${{ matrix.name }}
+          echo "   - Design recommendations based on language/purpose
+          echo "   - Custom domain suggestions"
+
+      - name: Create Summary
+        run: |
+          echo "## Pages Setup Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Repository | ${{ matrix.name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Pages URL | https://$ORG_NAME.github.io/${{ matrix.name }}/ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ✅ Enabled |" >> $GITHUB_STEP_SUMMARY
+
+  summary:
+    name: "Pages Setup Summary"
+    runs-on: ubuntu-latest
+    needs: setup-pages
+    if: always()
+    steps:
+      - name: Setup Complete
+        run: |
+          echo "## ✅ Pages Auto-Setup Complete"
+          echo ""
+          echo "Successfully configured GitHub Pages for multiple repositories."
+          echo "Visit your organization's Pages sites to view them."

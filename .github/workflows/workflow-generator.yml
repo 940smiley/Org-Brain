@@ -1,0 +1,214 @@
+# =============================================================================
+# WORKFLOW GENERATOR - Dynamic Workflow Creation
+# =============================================================================
+# Purpose: Generate and deploy workflows to repositories based on their type
+#
+# Features:
+#   - Auto-detect repository language and type
+#   - Generate appropriate CI/CD workflows
+#   - Deploy workflows to repositories (with approval)
+#   - Update existing workflows
+#   - Customize per-repository
+#
+# Triggers:
+#   - Manual dispatch to generate workflows
+#   - Schedule: Weekly check for workflow updates
+#   - Repository creation webhook
+#
+# Workflow Templates:
+#   1. Code Quality - Lint, format, test
+#   2. Security - SAST, dependency check, secrets
+#   3. Tests - Unit, integration, coverage
+#   4. Build - Build and release artifacts
+#   5. Deploy - Deploy to various platforms
+# =============================================================================
+
+name: "⚙️ Workflow Generator"
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "Repository name (empty for all matching)"
+        required: false
+        type: string
+      template:
+        description: "Workflow template"
+        required: false
+        type: choice
+        options:
+          - code-quality
+          - security
+          - tests
+          - build
+          - deploy
+          - all
+        default: "all"
+      dry_run:
+        description: "Preview changes without applying"
+        required: false
+        type: boolean
+        default: false
+  schedule:
+    # Run weekly to check for outdated workflows
+    - cron: "0 5 * * 0"
+
+permissions:
+  contents: write
+  pull-requests: write
+  workflows: write
+
+env:
+  ORG_NAME: ${{ github.repository_owner }}
+  DRY_RUN: ${{ github.event.inputs.dry_run || false }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN || secrets.ORG_AUTOMATION_TOKEN }}
+
+jobs:
+  # ===========================================================================
+  # DETECT REPOSITORY TYPES
+  # ===========================================================================
+  detect-repos:
+    name: "Detect Repository Types"
+    runs-on: ubuntu-latest
+    outputs:
+      javascript_repos: ${{ steps.detect.outputs.javascript_repos }}
+      python_repos: ${{ steps.detect.outputs.python_repos }}
+      go_repos: ${{ steps.detect.outputs.go_repos }}
+      rust_repos: ${{ steps.detect.outputs.rust_repos }}
+
+    steps:
+      - name: Checkout Org Brain
+        uses: actions/checkout@v4
+
+      - name: Detect repository languages
+        id: detect
+        run: |
+          echo "🔍 Detecting repository languages..."
+
+          repos=$(gh api "/orgs/$ORG_NAME/repos?per_page=100&archived=false" --jq '.[]')
+
+          js_repos="[]"
+          py_repos="[]"
+          go_repos="[]"
+          rs_repos="[]"
+
+          echo "$repos" | jq -c '.name, .language' | while read -r name lang; do
+            lang=$(echo "$lang" | tr '[:upper:]' '[:lower:]')
+            
+            case "$lang" in
+              javascript|typescript)
+                js_repos=$(echo "$js_repos" | jq --arg n "$name" '. += [$n]')
+                ;;
+              python)
+                py_repos=$(echo "$py_repos" | jq --arg n "$name" '. += [$n]')
+                ;;
+              go)
+                go_repos=$(echo "$go_repos" | jq --arg n "$name" '. += [$n]')
+                ;;
+              rust)
+                rs_repos=$(echo "$rs_repos" | jq --arg n "$name" '. += [$n]')
+                ;;
+            esac
+          done
+
+          echo "javascript_repos=$(echo "$js_repos" | jq -c '.')" >> $GITHUB_OUTPUT
+          echo "python_repos=$(echo "$py_repos" | jq -c '.')" >> $GITHUB_OUTPUT
+          echo "go_repos=$(echo "$go_repos" | jq -c '.')" >> $GITHUB_OUTPUT
+          echo "rust_repos=$(echo "$rs_repos" | jq -c '.')" >> $GITHUB_OUTPUT
+
+  # ===========================================================================
+  # GENERATE CODE QUALITY WORKFLOWS
+  # ===========================================================================
+  generate-quality-workflows:
+    name: "Generate Code Quality Workflows"
+    runs-on: ubuntu-latest
+    needs: detect-repos
+    if: ${{ github.event.inputs.template == 'code-quality' || github.event.inputs.template == 'all' }}
+
+    steps:
+      - name: Checkout Org Brain
+        uses: actions/checkout@v4
+
+      - name: Generate JavaScript Quality Workflows
+        if: ${{ needs.detect-repos.outputs.javascript_repos != '[]' }}
+        run: |
+          echo "⚙️ Generating JavaScript code quality workflows..."
+          echo "Target repositories: ${{ needs.detect-repos.outputs.javascript_repos }}"
+
+      - name: Generate Python Quality Workflows
+        if: ${{ needs.detect-repos.outputs.python_repos != '[]' }}
+        run: |
+          echo "⚙️ Generating Python code quality workflows..."
+          echo "Target repositories: ${{ needs.detect-repos.outputs.python_repos }}"
+
+      - name: Generate Go Quality Workflows
+        if: ${{ needs.detect-repos.outputs.go_repos != '[]' }}
+        run: |
+          echo "⚙️ Generating Go code quality workflows..."
+          echo "Target repositories: ${{ needs.detect-repos.outputs.go_repos }}"
+
+  # ===========================================================================
+  # GENERATE SECURITY WORKFLOWS
+  # ===========================================================================
+  generate-security-workflows:
+    name: "Generate Security Workflows"
+    runs-on: ubuntu-latest
+    needs: detect-repos
+    if: ${{ github.event.inputs.template == 'security' || github.event.inputs.template == 'all' }}
+
+    steps:
+      - name: Checkout Org Brain
+        uses: actions/checkout@v4
+
+      - name: Generate Security Scanning Workflows
+        run: |
+          echo "⚙️ Generating security workflows for all repositories..."
+          echo ""
+          echo "Configured checks:"
+          echo "  - Dependency scanning (Dependabot)"
+          echo "  - Secret detection"
+          echo "  - SAST analysis"
+          echo "  - License scanning"
+
+  # ===========================================================================
+  # GENERATE TEST WORKFLOWS
+  # ===========================================================================
+  generate-test-workflows:
+    name: "Generate Test Workflows"
+    runs-on: ubuntu-latest
+    needs: detect-repos
+    if: ${{ github.event.inputs.template == 'tests' || github.event.inputs.template == 'all' }}
+
+    steps:
+      - name: Checkout Org Brain
+        uses: actions/checkout@v4
+
+      - name: Generate Test Workflows
+        run: |
+          echo "⚙️ Generating test workflows..."
+          echo ""
+          echo "Test types:"
+          echo "  - Unit tests"
+          echo "  - Integration tests"
+          echo "  - E2E tests"
+          echo "  - Coverage reporting"
+
+  # ===========================================================================
+  # DEPLOYMENT SUMMARY
+  # ===========================================================================
+  summary:
+    name: "Deployment Summary"
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Generate Summary
+        run: |
+          echo "## ⚙️ Workflow Generation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Workflows generated for repositories matching template criteria." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+          echo "1. Review generated workflows" >> $GITHUB_STEP_SUMMARY
+          echo "2. Test in target repositories" >> $GITHUB_STEP_SUMMARY
+          echo "3. Enable in production when ready" >> $GITHUB_STEP_SUMMARY

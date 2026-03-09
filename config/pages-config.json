@@ -1,0 +1,74 @@
+{
+  "pagesSetupTemplates": {
+    "documentation": {
+      "name": "Documentation Site",
+      "description": "Complete documentation site with API docs, guides, and tutorials",
+      "source": "gh-pages",
+      "theme": "minimal",
+      "structure": {
+        "index.md": "# Documentation\n\nWelcome to the documentation site.",
+        "docs/": {
+          "getting-started.md": "# Getting Started\n\nBasic setup and quickstart guide.",
+          "api/": "API documentation directory",
+          "guides/": "Tutorial and guide directory"
+        },
+        "_config.yml": "theme: jekyll-theme-minimal\ntitle: Project Documentation"
+      }
+    },
+    "portfolio": {
+      "name": "Portfolio Site",
+      "description": "Showcase projects, work samples, and portfolio",
+      "source": "gh-pages",
+      "theme": "slate",
+      "structure": {
+        "index.md": "# Welcome to My Portfolio\n\nShowcase of my projects and work.",
+        "_config.yml": "theme: jekyll-theme-slate\ntitle: Portfolio"
+      }
+    },
+    "blog": {
+      "name": "Blog",
+      "description": "Blog site for articles and posts",
+      "source": "gh-pages",
+      "theme": "minimal",
+      "structure": {
+        "index.md": "# Blog\n\nArticles and posts.",
+        "_posts/": "Blog posts directory",
+        "_config.yml": "theme: jekyll-theme-minimal\ntitle: Blog"
+      }
+    },
+    "project": {
+      "name": "Project Landing Page",
+      "description": "Simple landing page for project",
+      "source": "gh-pages",
+      "theme": "minimal",
+      "structure": {
+        "index.md": "# Project Name\n\nProject description here.",
+        "README.md": "Project details",
+        "_config.yml": "theme: jekyll-theme-minimal"
+      }
+    }
+  },
+  "autoSetupRules": {
+    "enableForLanguage": {
+      "documentation": ["markdown", "rst", "asciidoc"],
+      "api": ["typescript", "python", "go", "java"],
+      "all": "*"
+    },
+    "enableForTopics": {
+      "documentation": ["docs", "documentation"],
+      "library": ["library", "sdk"],
+      "all": "*"
+    },
+    "skipPatterns": [
+      "archived:true",
+      "fork:true",
+      "description:.*boilerplate.*",
+      "topics:do-not-publish"
+    ]
+  },
+  "aiCustomizationPrompts": {
+    "documentationSuggestions": "Analyze this repository and suggest documentation improvements. Consider: missing docs, unclear README, incomplete API documentation, and missing examples.",
+    "contentGeneration": "Generate documentation content for this repository including: README structure, API documentation outline, getting started guide, troubleshooting section.",
+    "designRecommendations": "Recommend GitHub Pages design and structure for this repository based on its: language, purpose, audience, and existing documentation."
+  }
+}
