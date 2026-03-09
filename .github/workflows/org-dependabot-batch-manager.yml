@@ -63,6 +63,8 @@ env:
   ORG_NAME: ${{ github.event.inputs.org || github.repository_owner }}
   PRIORITY_MODE: ${{ github.event.inputs.priority_mode || 'security-first' }}
   DRY_RUN: ${{ github.event.inputs.dry_run || false }}
+  # Token fallback: use ORG_AUTOMATION_TOKEN if available, otherwise GITHUB_TOKEN
+  GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
 
 jobs:
   # ===========================================================================
@@ -241,9 +243,17 @@ jobs:
       matrix:
         pr: ${{ fromJson(needs.discover-dependabot-prs.outputs.security_prs) }}
     steps:
+      - name: Install prerequisites
+        run: |
+          # Ensure jq and gh are available
+          which jq || (sudo apt-get update && sudo apt-get install -y jq)
+          which gh || (curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && sudo apt-get update && sudo apt-get install -y gh)
+          echo "✅ Prerequisites installed"
+          jq --version
+          gh --version
+
       - name: Process Security PR
         env:
-          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
           PR_NUMBER: ${{ matrix.pr.number }}
           REPO: ${{ matrix.pr.repo }}
         run: |
@@ -310,9 +320,17 @@ jobs:
       matrix:
         pr: ${{ fromJson(needs.discover-dependabot-prs.outputs.patch_prs) }}
     steps:
+      - name: Install prerequisites
+        run: |
+          # Ensure jq and gh are available
+          which jq || (sudo apt-get update && sudo apt-get install -y jq)
+          which gh || (curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && sudo apt-get update && sudo apt-get install -y gh)
+          echo "✅ Prerequisites installed"
+          jq --version
+          gh --version
+
       - name: Process Patch PR
         env:
-          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
           PR_NUMBER: ${{ matrix.pr.number }}
           REPO: ${{ matrix.pr.repo }}
         run: |
@@ -371,9 +389,17 @@ jobs:
       matrix:
         pr: ${{ fromJson(needs.discover-dependabot-prs.outputs.minor_prs) }}
     steps:
+      - name: Install prerequisites
+        run: |
+          # Ensure jq and gh are available
+          which jq || (sudo apt-get update && sudo apt-get install -y jq)
+          which gh || (curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && sudo apt-get update && sudo apt-get install -y gh)
+          echo "✅ Prerequisites installed"
+          jq --version
+          gh --version
+
       - name: Process Minor PR
         env:
-          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
           PR_NUMBER: ${{ matrix.pr.number }}
           REPO: ${{ matrix.pr.repo }}
         run: |
@@ -426,9 +452,17 @@ jobs:
       matrix:
         pr: ${{ fromJson(needs.discover-dependabot-prs.outputs.major_prs) }}
     steps:
+      - name: Install prerequisites
+        run: |
+          # Ensure jq and gh are available
+          which jq || (sudo apt-get update && sudo apt-get install -y jq)
+          which gh || (curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && sudo apt-get update && sudo apt-get install -y gh)
+          echo "✅ Prerequisites installed"
+          jq --version
+          gh --version
+
       - name: Label Major Update for Review
         env:
-          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
           PR_NUMBER: ${{ matrix.pr.number }}
           REPO: ${{ matrix.pr.repo }}
         run: |

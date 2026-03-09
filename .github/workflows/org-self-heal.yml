@@ -78,6 +78,8 @@ env:
   SPECIFIC_REPOS: ${{ github.event.inputs.repos || '' }}
   CREATE_PR: ${{ github.event.inputs.create_pr || true }}
   MAX_REPOS: ${{ github.event.inputs.max_repos || 0 }}
+  # Token fallback: use ORG_AUTOMATION_TOKEN if available, otherwise GITHUB_TOKEN
+  GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
   COMMIT_EMAIL: "org-brain-bot@github.com"
   COMMIT_NAME: "Org Brain Bot"
   BRANCH_NAME: "org-brain/auto-maintenance"
@@ -159,16 +161,25 @@ jobs:
     name: "Maintain: ${{ matrix.repo }}"
     runs-on: ubuntu-latest
     needs: discover-repos
-    if: ${{ needs.discover-repos.outputs.repo_count > 0 }}
+    if: ${{ needs.discover-repos.outputs.repo_count > 0 && needs.discover-repos.outputs.repo_list != '' }}
     strategy:
       max-parallel: 8
       fail-fast: false
       matrix:
-        repo: ${{ fromJson(format('["{0}"]', join(needs.discover-repos.outputs.repo_list, '","'))) }}
+        repo: ${{ fromJson(needs.discover-repos.outputs.repo_list && needs.discover-repos.outputs.repo_list != '' && format('["{0}"]', join(needs.discover-repos.outputs.repo_list, '","')) || '[]') }}
     outputs:
       changes_made_${{ matrix.repo }}: ${{ steps.maintain.outputs.changes_made }}
       pr_created_${{ matrix.repo }}: ${{ steps.maintain.outputs.pr_created }}
     steps:
+      - name: Install prerequisites
+        run: |
+          # Ensure jq and gh are available
+          which jq || (sudo apt-get update && sudo apt-get install -y jq)
+          which gh || (curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && sudo apt-get update && sudo apt-get install -y gh)
+          echo "✅ Prerequisites installed"
+          jq --version
+          gh --version
+
       - name: Checkout Org Brain
         uses: actions/checkout@v4
 
