@@ -1,0 +1,10 @@
+{
+  "scanned_at": "",
+  "mode": "all",
+  "scan_summary": {
+    "total_failures": 0,
+    "repos_with_failures": 0,
+    "repos_scanned": 0
+  },
+  "repositories": []
+}
