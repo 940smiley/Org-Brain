@@ -78,26 +78,30 @@ jobs:
           # Create deployment directory
           mkdir -p /tmp/pages-deploy
           
-          # Copy dashboard files
-          cp -r dashboard/* /tmp/pages-deploy/
-          
-          # Copy docs index (main entry point)
+          # Copy docs index (main entry point) to root
           if [ -f "docs/index.html" ]; then
-            cp docs/index.html /tmp/pages-deploy/
+            cp docs/index.html /tmp/pages-deploy/index.html
           fi
           
-          # Copy generated data if exists
+          # Copy dashboard files to dashboard subdirectory
+          mkdir -p /tmp/pages-deploy/dashboard
+          cp -r dashboard/* /tmp/pages-deploy/dashboard/
+          
+          # Copy generated data to root for dashboard access
           if [ -f "data/repos.json" ]; then
-            cp data/repos.json /tmp/pages-deploy/
+            cp data/repos.json /tmp/pages-deploy/data/repos.json
           else
             # Create empty data file
-            echo '[]' > /tmp/pages-deploy/repos.json
+            mkdir -p /tmp/pages-deploy/data
+            echo '[]' > /tmp/pages-deploy/data/repos.json
             echo "⚠️  No repos.json found, created empty data file"
           fi
           
           # List deployment contents
           echo "📦 Deployment contents:"
           ls -la /tmp/pages-deploy/
+          echo "📦 Dashboard contents:"
+          ls -la /tmp/pages-deploy/dashboard/
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3

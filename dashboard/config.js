@@ -8,19 +8,21 @@ const CONFIG = {
     // =========================================================================
     // ORGANIZATION SETTINGS
     // =========================================================================
-    
+
     orgName: '940smiley',
     orgDisplayName: 'Org Brain',
 
     // =========================================================================
     // DATA SETTINGS
     // =========================================================================
-    
+
     /**
-     * Load repos from Org-Brain/data/repos.json
-     * This is the correct path for your controller repo structure.
+     * Load repos from ../data/repos.json when deployed to dashboard subdirectory
+     * Falls back to data/repos.json for local development
      */
-    dataPath: 'data/repos.json',
+    dataPath: typeof window !== 'undefined' && window.location.pathname.includes( '/dashboard/' )
+        ? '../data/repos.json'
+        : 'data/repos.json',
 
     /**
      * Auto-refresh every 5 minutes
@@ -32,9 +34,9 @@ const CONFIG = {
     // =========================================================================
     // DISPLAY SETTINGS
     // =========================================================================
-    
+
     itemsPerPage: 20,
-    pageSizeOptions: [10, 20, 50, 100],
+    pageSizeOptions: [ 10, 20, 50, 100 ],
 
     defaultSortField: 'health',
     defaultSortOrder: 'desc',
@@ -44,7 +46,7 @@ const CONFIG = {
     // =========================================================================
     // FEATURE FLAGS (EXPANDED)
     // =========================================================================
-    
+
     enableSearch: true,
     enableLanguageFilter: true,
     enableHealthFilter: true,
@@ -75,7 +77,7 @@ const CONFIG = {
     // =========================================================================
     // HEALTH SCORE CONFIGURATION
     // =========================================================================
-    
+
     healthThresholds: {
         healthy: 80,
         warning: 60,
@@ -109,7 +111,7 @@ const CONFIG = {
     // =========================================================================
     // UI CUSTOMIZATION
     // =========================================================================
-    
+
     dashboardTitle: 'Org Brain',
     dashboardSubtitle: 'Organization Command Center',
 
@@ -125,13 +127,14 @@ const CONFIG = {
     // =========================================================================
     // API ENDPOINTS (WORKFLOW TRIGGERS ENABLED)
     // =========================================================================
-    
+
     githubApiBase: 'https://api.github.com',
 
     workflowDispatchTemplate:
         '/repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches'
 };
 
-if (typeof module !== 'undefined' && module.exports) {
+if ( typeof module !== 'undefined' && module.exports )
+{
     module.exports = CONFIG;
 }
