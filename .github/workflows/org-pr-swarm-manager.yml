@@ -129,8 +129,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
-          cache-dependency-path: "**/package-lock.json"
+          # Note: cache-dependency-path removed because:
+          # 1. This workflow runs from org-brain repo (no package-lock.json here)
+          # 2. Target repos are cloned dynamically in the bash script
+          # 3. Each target repo handles its own npm install during processing
 
       - name: Setup Python (for Python repos)
         uses: actions/setup-python@v5
