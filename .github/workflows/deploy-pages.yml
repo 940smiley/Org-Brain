@@ -88,11 +88,11 @@ jobs:
           cp -r dashboard/* /tmp/pages-deploy/dashboard/
           
           # Copy generated data to root for dashboard access
+          mkdir -p /tmp/pages-deploy/data
           if [ -f "data/repos.json" ]; then
             cp data/repos.json /tmp/pages-deploy/data/repos.json
           else
             # Create empty data file
-            mkdir -p /tmp/pages-deploy/data
             echo '[]' > /tmp/pages-deploy/data/repos.json
             echo "⚠️  No repos.json found, created empty data file"
           fi
