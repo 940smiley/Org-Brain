@@ -88,10 +88,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
         run: |
-          echo "🔍 Discovering repositories in organization: $ORG_NAME"
+          echo "🔍 Discovering repositories in: $ORG_NAME"
+          sudo apt-get update -qq && sudo apt-get install -y jq > /dev/null 2>&1
           
           # Fetch all repositories with details
-          repos_json=$(gh api "/orgs/$ORG_NAME/repos?per_page=100&type=all" --paginate)
+          repos_json=$(gh api "/users/$ORG_NAME/repos?per_page=100&type=all" --paginate)
           
           if [ "$INCLUDE_ARCHIVED" = "false" ]; then
             # Filter out archived repositories
@@ -102,14 +103,14 @@ jobs:
           
           repo_count=$(echo "$active_repos" | jq 'length')
           
-          # Extract repo names for matrix
-          repo_names=$(echo "$active_repos" | jq -r '[.[] | .name] | join(",")')
+          # Extract repo names as JSON array
+          repo_names=$(echo "$active_repos" | jq -c '[.[] | .name]')
           
           # Create detailed repo info
           repo_details=$(echo "$active_repos" | jq -c '[.[] | {name: .name, full_name: .full_name, archived: .archived, private: .private, pushed_at: .pushed_at, updated_at: .updated_at}]')
           
           echo "📦 Found $repo_count repositories"
-          echo "repo_list=$repo_names" >> $GITHUB_OUTPUT
+          echo "repo_list=$(echo "$repo_names" | jq -c '.')" >> $GITHUB_OUTPUT
           echo "repo_count=$repo_count" >> $GITHUB_OUTPUT
           echo "repo_details=$(echo "$repo_details" | jq -c '.')" >> $GITHUB_OUTPUT
 
@@ -120,12 +121,12 @@ jobs:
     name: "Collect Metrics: ${{ matrix.repo }}"
     runs-on: ubuntu-latest
     needs: discover-repos
-    if: ${{ needs.discover-repos.outputs.repo_count > 0 && needs.discover-repos.outputs.repo_list != '' }}
+    if: ${{ needs.discover-repos.outputs.repo_count > 0 }}
     strategy:
       max-parallel: 15
       fail-fast: false
       matrix:
-        repo: ${{ fromJson(needs.discover-repos.outputs.repo_list && needs.discover-repos.outputs.repo_list != '' && format('["{0}"]', join(needs.discover-repos.outputs.repo_list, '","')) || '[]') }}
+        repo: ${{ fromJson(needs.discover-repos.outputs.repo_list) }}
     outputs:
       metrics_${{ matrix.repo }}: ${{ steps.collect.outputs.metrics }}
     steps:

@@ -48,8 +48,9 @@ jobs:
         id: discover
         run: |
           echo "🔍 Discovering repositories without Pages enabled..."
+          sudo apt-get update -qq && sudo apt-get install -y jq > /dev/null 2>&1
           
-          repos=$(gh api "/orgs/$ORG_NAME/repos?per_page=100&type=public" --jq '.[] | select(.archived == false and .fork == false) | .name')
+          repos=$(gh api "/users/$ORG_NAME/repos?per_page=100&type=public" --jq '.[] | select(.archived == false and .fork == false) | .name')
           
           candidates="[]"
           count=0

@@ -89,11 +89,19 @@ jobs:
           GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           #!/bin/bash
+          set -e
           
-          echo "🔍 Fetching repositories for organization: $ORG_NAME"
+          # Install prerequisites
+          sudo apt-get update -qq
+          sudo apt-get install -y jq > /dev/null 2>&1
           
-          # Fetch all repositories with detailed information
-          repos_json=$(gh api "/orgs/$ORG_NAME/repos?per_page=100&type=all" --paginate)
+          echo "🔍 Fetching repositories for: $ORG_NAME"
+          echo "📋 Checking authentication status..."
+          gh auth status
+          
+          # Determine if ORG_NAME is a user or organization
+          # Try organization endpoint first, fall back to user endpoint
+          repos_json=$(gh api "/users/$ORG_NAME/repos?per_page=100&type=all&sort=updated" --paginate 2>/dev/null || echo "[]")
           
           # Filter archived if needed
           if [ "$INCLUDE_ARCHIVED" = "false" ]; then

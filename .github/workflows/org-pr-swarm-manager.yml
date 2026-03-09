@@ -87,10 +87,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
         run: |
-          echo "🔍 Discovering repositories in organization: $ORG_NAME"
+          echo "🔍 Discovering repositories in: $ORG_NAME"
           
-          # Fetch all repositories (including archived for filtering)
-          repos_json=$(gh api "/orgs/$ORG_NAME/repos?per_page=100&type=all" --paginate)
+          # Install prerequisites
+          sudo apt-get update -qq && sudo apt-get install -y jq > /dev/null 2>&1
+          
+          # Fetch all repositories from user/org account using correct endpoint
+          repos_json=$(gh api "/users/$ORG_NAME/repos?per_page=100&type=all" --paginate 2>/dev/null || echo "[]")
           
           # Filter out archived repositories and extract names
           active_repos=$(echo "$repos_json" | jq -r '[.[] | select(.archived == false) | .name] | join(",")')

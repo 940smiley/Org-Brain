@@ -84,8 +84,9 @@ jobs:
         id: detect
         run: |
           echo "🔍 Detecting repository languages..."
+          sudo apt-get update -qq && sudo apt-get install -y jq > /dev/null 2>&1
 
-          repos=$(gh api "/orgs/$ORG_NAME/repos?per_page=100&archived=false" --jq '.[]')
+          repos=$(gh api "/users/$ORG_NAME/repos?per_page=100&type=all" --jq '.[] | select(.archived == false)')
 
           js_repos="[]"
           py_repos="[]"
