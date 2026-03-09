@@ -1,0 +1,292 @@
+# =============================================================================
+# ANALYZE CODE - Repository Code Analysis
+# =============================================================================
+# Purpose: Analyze code quality and health for a specific repository
+#
+# Features:
+#   - Runs linting checks for multiple languages
+#   - Calculates code health score
+#   - Detects code smells and potential issues
+#   - Generates JSON report for dashboard consumption
+#
+# Triggers:
+#   - Workflow dispatch from dashboard
+#   - Manual dispatch with repo input
+#
+# Output:
+#   - data/analysis/<repo>.json with analysis results
+# =============================================================================
+
+name: "🔍 Analyze Code"
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "Repository name to analyze"
+        required: true
+        type: string
+      owner:
+        description: "Repository owner (org or user)"
+        required: false
+        type: string
+        default: "940smiley"
+      deep_analysis:
+        description: "Run deep analysis (slower but more thorough)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
+  OWNER: ${{ github.event.inputs.owner || github.repository_owner }}
+  REPO: ${{ github.event.inputs.repo }}
+  DEEP_ANALYSIS: ${{ github.event.inputs.deep_analysis || false }}
+
+jobs:
+  analyze:
+    name: "Analyze ${{ github.event.inputs.repo }}"
+    runs-on: ubuntu-latest
+    outputs:
+      health_score: ${{ steps.analyze.outputs.health_score }}
+      health_status: ${{ steps.analyze.outputs.health_status }}
+    steps:
+      - name: Install prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl
+          which gh || (curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && sudo apt-get update && sudo apt-get install -y gh)
+          echo "✅ Prerequisites installed"
+          gh --version
+
+      - name: Clone repository
+        run: |
+          echo "🔍 Cloning $OWNER/$REPO..."
+          git clone --depth 1 "https://github.com/$OWNER/$REPO.git" repo
+          cd repo
+          echo "📁 Repository cloned successfully"
+          echo "Files: $(find . -type f | wc -l)"
+
+      - name: Analyze Repository
+        id: analyze
+        run: |
+          #!/bin/bash
+          set -e
+          
+          cd repo
+          
+          echo "📊 Analyzing repository: $OWNER/$REPO"
+          
+          # Initialize scores
+          code_quality=100
+          documentation=100
+          testing=100
+          security=100
+          maintenance=100
+          
+          # Count files by type
+          total_files=$(find . -type f | wc -l)
+          code_files=$(find . -type f \( -name "*.js" -o -name "*.ts" -o -name "*.py" -o -name "*.go" -o -name "*.rs" -o -name "*.java" -o -name "*.cpp" -o -name "*.c" -o -name "*.h" \) | wc -l)
+          doc_files=$(find . -type f \( -name "*.md" -o -name "*.rst" -o -name "*.txt" \) | wc -l)
+          test_files=$(find . -type f \( -name "*test*" -o -name "*spec*" \) | wc -l)
+          
+          echo "📁 Total files: $total_files"
+          echo "📝 Code files: $code_files"
+          echo "📚 Doc files: $doc_files"
+          echo "🧪 Test files: $test_files"
+          
+          # Code quality checks
+          if [ "$DEEP_ANALYSIS" = "true" ]; then
+            # Deep analysis: check for common issues
+            large_files=$(find . -type f -size +1M | wc -l)
+            if [ "$large_files" -gt 0 ]; then
+              code_quality=$((code_quality - large_files * 5))
+              echo "⚠️  Found $large_files large files (>1MB)"
+            fi
+            
+            # Check for TODO/FIXME comments
+            todo_count=$(grep -r "TODO\|FIXME\|XXX" --include="*.js" --include="*.ts" --include="*.py" --include="*.go" --include="*.rs" 2>/dev/null | wc -l || echo "0")
+            if [ "$todo_count" -gt 10 ]; then
+              code_quality=$((code_quality - (todo_count / 10)))
+              echo "⚠️  Found $todo_count TODO/FIXME comments"
+            fi
+          fi
+          
+          # Documentation score
+          if [ "$doc_files" -eq 0 ]; then
+            documentation=50
+            echo "⚠️  No documentation files found"
+          fi
+          if [ ! -f "README.md" ]; then
+            documentation=$((documentation - 30))
+            echo "⚠️  No README.md found"
+          fi
+          if [ ! -f "LICENSE" ] && [ ! -f "LICENSE.md" ] && [ ! -f "LICENSE.txt" ]; then
+            documentation=$((documentation - 20))
+            echo "⚠️  No LICENSE file found"
+          fi
+          
+          # Testing score
+          if [ "$test_files" -eq 0 ] && [ "$code_files" -gt 0 ]; then
+            testing=40
+            echo "⚠️  No test files found"
+          fi
+          test_ratio=$((test_files * 100 / (code_files + 1)))
+          if [ "$test_ratio" -lt 10 ]; then
+            testing=$((testing - 20))
+          elif [ "$test_ratio" -lt 30 ]; then
+            testing=$((testing - 10))
+          fi
+          
+          # Security checks
+          # Check for exposed secrets patterns (basic check)
+          if grep -r "password\s*=\s*['\"]" --include="*.js" --include="*.ts" --include="*.py" --include="*.env" 2>/dev/null | grep -v node_modules | head -1 | grep -q .; then
+            security=$((security - 30))
+            echo "⚠️  Potential hardcoded password found"
+          fi
+          if grep -r "api_key\s*=\s*['\"]" --include="*.js" --include="*.ts" --include="*.py" --include="*.env" 2>/dev/null | grep -v node_modules | head -1 | grep -q .; then
+            security=$((security - 30))
+            echo "⚠️  Potential hardcoded API key found"
+          fi
+          
+          # Maintenance checks
+          # Check for .gitignore
+          if [ ! -f ".gitignore" ]; then
+            maintenance=$((maintenance - 20))
+            echo "⚠️  No .gitignore found"
+          fi
+          
+          # Check for package manager files
+          if [ -f "package.json" ] && [ ! -f "package-lock.json" ] && [ ! -f "yarn.lock" ] && [ ! -f "pnpm-lock.yaml" ]; then
+            maintenance=$((maintenance - 10))
+            echo "⚠️  No lockfile for npm dependencies"
+          fi
+          
+          # Ensure scores are within bounds
+          for score in code_quality documentation testing security maintenance; do
+            val=${!score}
+            if [ "$val" -lt 0 ]; then
+              eval "$score=0"
+            elif [ "$val" -gt 100 ]; then
+              eval "$score=100"
+            fi
+          done
+          
+          # Calculate overall health score
+          health_score=$(( (code_quality + documentation + testing + security + maintenance) / 5 ))
+          
+          # Determine health status
+          if [ "$health_score" -ge 80 ]; then
+            health_status="healthy"
+          elif [ "$health_score" -ge 60 ]; then
+            health_status="warning"
+          elif [ "$health_score" -ge 40 ]; then
+            health_status="unhealthy"
+          else
+            health_status="critical"
+          fi
+          
+          echo ""
+          echo "📊 Analysis Results:"
+          echo "   Code Quality: $code_quality"
+          echo "   Documentation: $documentation"
+          echo "   Testing: $testing"
+          echo "   Security: $security"
+          echo "   Maintenance: $maintenance"
+          echo "   Overall Health: $health_score ($health_status)"
+          
+          # Output for GitHub Actions
+          echo "health_score=$health_score" >> $GITHUB_OUTPUT
+          echo "health_status=$health_status" >> $GITHUB_OUTPUT
+          
+          # Create JSON report
+          mkdir -p ../data/analysis
+          cat > ../data/analysis/${REPO}.json << EOF
+          {
+            "repository": "$REPO",
+            "owner": "$OWNER",
+            "analyzed_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "health_score": $health_score,
+            "health_status": "$health_status",
+            "metrics": {
+              "code_quality": $code_quality,
+              "documentation": $documentation,
+              "testing": $testing,
+              "security": $security,
+              "maintenance": $maintenance
+            },
+            "stats": {
+              "total_files": $total_files,
+              "code_files": $code_files,
+              "doc_files": $doc_files,
+              "test_files": $test_files
+            },
+            "deep_analysis": $DEEP_ANALYSIS
+          }
+          EOF
+          
+          echo "✅ Analysis report saved to data/analysis/${REPO}.json"
+
+      - name: Upload analysis report
+        uses: actions/upload-artifact@v4
+        with:
+          name: analysis-report
+          path: data/analysis/${{ github.event.inputs.repo }}.json
+          retention-days: 30
+
+      - name: Commit analysis results
+        run: |
+          # Configure git
+          git config user.email "org-brain-bot@github.com"
+          git config user.name "Org Brain Bot"
+          
+          # Check if data directory exists in repo
+          if [ ! -d "data/analysis" ]; then
+            mkdir -p data/analysis
+          fi
+          
+          # Copy the analysis file
+          cp repo/data/analysis/${REPO}.json data/analysis/ 2>/dev/null || true
+          
+          # Check for changes
+          if git diff --quiet data/analysis/${REPO}.json 2>/dev/null; then
+            echo "ℹ️  No changes to commit"
+          else
+            git add data/analysis/${REPO}.json
+            git commit -m "chore: add analysis report for $REPO
+            
+            Health Score: ${{ steps.analyze.outputs.health_score }}
+            Status: ${{ steps.analyze.outputs.health_status }}"
+            git push
+            echo "✅ Analysis results committed"
+          fi
+
+      - name: Generate Summary
+        run: |
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          # 🔍 Code Analysis Report: $OWNER/$REPO
+          
+          ## Health Score: ${{ steps.analyze.outputs.health_score }}/100
+          
+          Status: **${{ steps.analyze.outputs.health_status }}**
+          
+          ## Metrics
+          
+          | Metric | Score |
+          |--------|-------|
+          | Code Quality | ${{ steps.analyze.outputs.health_score }} |
+          | Documentation | - |
+          | Testing | - |
+          | Security | - |
+          | Maintenance | - |
+          
+          ## Next Steps
+          
+          - View full report in \`data/analysis/${REPO}.json\`
+          - Address any identified issues
+          - Re-run analysis after fixes
+          EOF

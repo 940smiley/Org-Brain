@@ -109,7 +109,18 @@ const CONFIG = {
      * Enable workflow trigger buttons
      * Requires proper authentication setup
      */
-    enableWorkflowTriggers: false,
+    enableWorkflowTriggers: true,
+    
+    /**
+     * Enable workflow installation
+     * Allows installing workflows to repositories
+     */
+    enableWorkflowInstallation: true,
+    
+    /**
+     * Enable code analysis
+     */
+    enableCodeAnalysis: true,
     
     // =========================================================================
     // HEALTH SCORE CONFIGURATION

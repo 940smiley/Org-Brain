@@ -928,6 +928,271 @@ a:hover {
     border: 0;
 }
 
+/* =============================================================================
+   MODAL STYLES
+   ============================================================================= */
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: var(--spacing-lg);
+    overflow-y: auto;
+}
+
+.modal-content {
+    background-color: var(--color-bg-card);
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--radius-lg);
+    max-width: 600px;
+    width: 100%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-lg);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-lg);
+    border-bottom: 1px solid var(--color-border-primary);
+}
+
+.modal-header h2 {
+    font-size: var(--font-size-xl);
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    font-size: 28px;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    transition: var(--transition-fast);
+}
+
+.modal-close:hover {
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-primary);
+}
+
+.modal-body {
+    padding: var(--spacing-lg);
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* Analysis Results */
+.analysis-results h3 {
+    margin-bottom: var(--spacing-sm);
+}
+
+.analysis-date {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--spacing-lg);
+}
+
+.health-score-display {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-lg);
+    background-color: var(--color-bg-tertiary);
+    border-radius: var(--radius-lg);
+}
+
+.health-score-circle {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    border: 4px solid;
+}
+
+.health-score-circle.healthy {
+    background-color: var(--color-healthy-bg);
+    border-color: var(--color-healthy);
+    color: var(--color-healthy);
+}
+
+.health-score-circle.warning {
+    background-color: var(--color-warning-health-bg);
+    border-color: var(--color-warning-health);
+    color: var(--color-warning-health);
+}
+
+.health-score-circle.unhealthy {
+    background-color: var(--color-unhealthy-bg);
+    border-color: var(--color-unhealthy);
+    color: var(--color-unhealthy);
+}
+
+.health-score-circle.critical {
+    background-color: var(--color-critical-bg);
+    border-color: var(--color-critical);
+    color: var(--color-critical);
+}
+
+.health-status {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+.metric-card {
+    background-color: var(--color-bg-tertiary);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    text-align: center;
+}
+
+.metric-label {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.metric-value {
+    display: block;
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--color-accent);
+}
+
+.analysis-stats {
+    background-color: var(--color-bg-tertiary);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+.analysis-stats h4 {
+    margin-bottom: var(--spacing-sm);
+    font-size: var(--font-size-md);
+}
+
+.analysis-stats ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.analysis-stats li {
+    padding: var(--spacing-xs) 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.analysis-pending {
+    text-align: center;
+    padding: var(--spacing-2xl);
+    color: var(--color-text-secondary);
+}
+
+.analysis-actions {
+    display: flex;
+    gap: var(--spacing-md);
+    justify-content: flex-end;
+    margin-top: var(--spacing-lg);
+    padding-top: var(--spacing-lg);
+    border-top: 1px solid var(--color-border-primary);
+}
+
+/* Workflow Install/Trigger */
+.workflow-install,
+.workflow-trigger {
+    padding: var(--spacing-md) 0;
+}
+
+.workflow-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    margin: var(--spacing-lg) 0;
+}
+
+.workflow-option {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background-color: var(--color-bg-tertiary);
+    border-radius: var(--radius-md);
+}
+
+.workflow-option .btn {
+    min-width: 140px;
+}
+
+.workflow-desc {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.workflow-note {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-md);
+    background-color: var(--color-bg-tertiary);
+    border-radius: var(--radius-md);
+}
+
+/* Responsive modal */
+@media (max-width: 768px) {
+    .modal-content {
+        max-height: 90vh;
+    }
+    
+    .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .workflow-option {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .analysis-actions {
+        flex-direction: column;
+    }
+    
+    .analysis-actions .btn {
+        width: 100%;
+    }
+}
+
 .text-center {
     text-align: center;
 }
