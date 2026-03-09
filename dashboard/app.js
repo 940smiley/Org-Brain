@@ -1,10 +1,13 @@
 /**
  * =============================================================================
- * ORG BRAIN DASHBOARD APPLICATION
+ * ORG BRAIN DASHBOARD APPLICATION - Enhanced Version
  * =============================================================================
- * 
- * Main application logic for the Org Brain dashboard.
- * Handles data loading, rendering, filtering, sorting, and user interactions.
+ * Features:
+ * - Per-repo workflow controls
+ * - Bulk actions
+ * - Workflow status indicators
+ * - Failure reporting panel
+ * - Auto-repair functionality
  */
 
 // =============================================================================
@@ -23,40 +26,45 @@ const AppState = {
     selectedHealth: 'all',
     showArchived: CONFIG.showArchivedByDefault,
     languages: [],
-    selectedRepos: [], // New: selected repositories for bulk actions
     isLoading: false,
     error: null,
-    lastUpdated: null
+    lastUpdated: null,
+    selectedRepos: new Set(),
+    workflowFailures: null,
+    bulkActionMode: false
 };
+
+// Available workflows for dispatch
+const AVAILABLE_WORKFLOWS = [
+    { id: 'org-pr-swarm-manager.yml', name: '🤖 PR Swarm Manager', icon: '🔀' },
+    { id: 'org-dependabot-batch-manager.yml', name: '📦 Dependabot Batch', icon: '📦' },
+    { id: 'org-repo-health-check.yml', name: '🏥 Health Check', icon: '🏥' },
+    { id: 'org-self-heal.yml', name: '🔧 Self-Heal', icon: '🔧' },
+    { id: 'org-automation-conflict-detector.yml', name: '⚠️ Conflict Detector', icon: '⚠️' },
+    { id: 'autonomous-agents-manager.yml', name: '🤖 Agents Manager', icon: '🤖' },
+    { id: 'pages-auto-setup.yml', name: '📄 Pages Setup', icon: '📄' },
+    { id: 'analyze-code.yml', name: '🔍 Code Analysis', icon: '🔍' },
+    { id: 'scan-workflow-failures.yml', name: '🔍 Scan Failures', icon: '📊' },
+    { id: 'generate-repo-data.yml', name: '📊 Generate Data', icon: '📈' },
+    { id: 'workflow-generator.yml', name: '⚙️ Workflow Generator', icon: '⚙️' },
+    { id: 'autonomous-setup.yml', name: '🚀 One-Click Setup', icon: '🚀' },
+    { id: 'auto-repair.yml', name: '🔧 Auto-Repair', icon: '🛠️' }
+];
 
 // =============================================================================
 // INITIALIZATION
 // =============================================================================
 
-/**
- * Initialize the dashboard application
- */
 async function initDashboard() {
     log('Initializing Org Brain Dashboard...');
-    
-    // Update header with organization info
     updateHeader();
-    
-    // Setup event listeners
     setupEventListeners();
-    
-    // Load repository data
     await loadRepositoryData();
-    
-    // Render initial view
+    await loadWorkflowFailures();
     renderDashboard();
-    
     log('Dashboard initialized successfully');
 }
 
-/**
- * Update header with organization information
- */
 function updateHeader() {
     const orgName = CONFIG.orgDisplayName || CONFIG.orgName;
     document.getElementById('org-name').textContent = orgName;
@@ -65,81 +73,54 @@ function updateHeader() {
     document.title = `${CONFIG.dashboardTitle} - ${orgName}`;
 }
 
-/**
- * Setup all event listeners
- */
 function setupEventListeners() {
-    // Search input
     const searchInput = document.getElementById('search-input');
     if (searchInput) {
         searchInput.addEventListener('input', debounce(handleSearch, 300));
     }
-    
-    // Language filter
+
     const languageFilter = document.getElementById('language-filter');
     if (languageFilter) {
         languageFilter.addEventListener('change', handleLanguageFilter);
     }
-    
-    // Health filter
+
     const healthFilter = document.getElementById('health-filter');
     if (healthFilter) {
         healthFilter.addEventListener('change', handleHealthFilter);
     }
-    
-    // Sort select
+
     const sortSelect = document.getElementById('sort-select');
     if (sortSelect) {
         sortSelect.addEventListener('change', handleSort);
     }
-    
-    // Sort order toggle
-    const sortOrderToggle = document.getElementById('sort-order-toggle');
-    if (sortOrderToggle) {
-        sortOrderToggle.addEventListener('click', toggleSortOrder);
-    }
-    
-    // Archived toggle
+
     const archivedToggle = document.getElementById('archived-toggle');
     if (archivedToggle) {
         archivedToggle.addEventListener('change', handleArchivedToggle);
     }
-    
-    // Refresh button
+
     const refreshBtn = document.getElementById('refresh-btn');
     if (refreshBtn) {
         refreshBtn.addEventListener('click', () => loadRepositoryData());
     }
-    
-    // Bulk actions
-    const selectAllBtn = document.getElementById('select-all-btn');
-    if (selectAllBtn) {
-        selectAllBtn.addEventListener('click', selectAllRepos);
+
+    const bulkActionsBtn = document.getElementById('bulk-actions-btn');
+    if (bulkActionsBtn) {
+        bulkActionsBtn.addEventListener('click', toggleBulkActions);
     }
-    
-    const clearSelectionBtn = document.getElementById('clear-selection-btn');
-    if (clearSelectionBtn) {
-        clearSelectionBtn.addEventListener('click', clearSelection);
+
+    const failuresPanelBtn = document.getElementById('failures-panel-btn');
+    if (failuresPanelBtn) {
+        failuresPanelBtn.addEventListener('click', toggleFailuresPanel);
     }
-    
-    const bulkRunWorkflowsBtn = document.getElementById('bulk-run-workflows-btn');
-    if (bulkRunWorkflowsBtn) {
-        bulkRunWorkflowsBtn.addEventListener('click', runBulkWorkflows);
-    }
-    
-    const bulkAnalyzeBtn = document.getElementById('bulk-analyze-btn');
-    if (bulkAnalyzeBtn) {
-        bulkAnalyzeBtn.addEventListener('click', analyzeSelectedRepos);
-    }
-    
-    const bulkManageBtn = document.getElementById('bulk-manage-btn');
-    if (bulkManageBtn) {
-        bulkManageBtn.addEventListener('click', manageSelectedRepos);
-    }
-    
-    // Auto-refresh if enabled
+
+    setupPaginationListeners();
+
     if (CONFIG.refreshInterval > 0) {
-        setInterval(() => loadRepositoryData(true), CONFIG.refreshInterval);
+        setInterval(() => {
+            loadRepositoryData(true);
+            loadWorkflowFailures(true);
+        }, CONFIG.refreshInterval);
     }
 }
 
@@ -147,46 +128,37 @@ function setupEventListeners() {
 // DATA LOADING
 // =============================================================================
 
-/**
- * Load repository data from JSON file
- * @param {boolean} silent - If true, don't show loading indicator
- */
 async function loadRepositoryData(silent = false) {
     if (AppState.isLoading) return;
-    
+
     AppState.isLoading = true;
     AppState.error = null;
-    
+
     if (!silent) {
         showLoading(true);
     }
-    
+
     try {
         const response = await fetch(CONFIG.dataPath);
-        
         if (!response.ok) {
             throw new Error(`Failed to load data: ${response.status}`);
         }
-        
+
         const data = await response.json();
         AppState.repositories = data;
         AppState.lastUpdated = new Date();
-        
-        // Extract unique languages
+
         extractLanguages();
-        
-        // Apply filters and sorting
         applyFiltersAndSort();
-        
-        // Update UI
+
         if (!silent) {
             updateFiltersUI();
             renderDashboard();
             updateLastUpdated();
         }
-        
+
         log(`Loaded ${data.length} repositories`);
-        
+
     } catch (error) {
         AppState.error = error.message;
         logError('Failed to load repository data:', error);
@@ -199,9 +171,18 @@ async function loadRepositoryData(silent = false) {
     }
 }
 
-/**
- * Extract unique languages from repositories
- */
+async function loadWorkflowFailures(silent = false) {
+    try {
+        const response = await fetch('data/workflow-failures/failures.json');
+        if (response.ok) {
+            AppState.workflowFailures = await response.json();
+            log('Loaded workflow failures data');
+        }
+    } catch (error) {
+        log('No workflow failures data available');
+    }
+}
+
 function extractLanguages() {
     const languageSet = new Set();
     AppState.repositories.forEach(repo => {
@@ -216,56 +197,42 @@ function extractLanguages() {
 // FILTERING AND SORTING
 // =============================================================================
 
-/**
- * Apply all filters and sorting to repositories
- */
 function applyFiltersAndSort() {
     let filtered = [...AppState.repositories];
-    
-    // Filter by search query
+
     if (AppState.searchQuery) {
         const query = AppState.searchQuery.toLowerCase();
-        filtered = filtered.filter(repo => 
+        filtered = filtered.filter(repo =>
             repo.name.toLowerCase().includes(query) ||
             repo.description.toLowerCase().includes(query) ||
             (repo.topics && repo.topics.some(t => t.toLowerCase().includes(query)))
         );
     }
-    
-    // Filter by language
+
     if (AppState.selectedLanguage !== 'all') {
         filtered = filtered.filter(repo => repo.language === AppState.selectedLanguage);
     }
-    
-    // Filter by health status
+
     if (AppState.selectedHealth !== 'all') {
         filtered = filtered.filter(repo => repo.health_status === AppState.selectedHealth);
     }
-    
-    // Filter archived
+
     if (!AppState.showArchived) {
         filtered = filtered.filter(repo => !repo.archived);
     }
-    
+
     AppState.filteredRepos = filtered;
-    
-    // Sort
     sortRepositories();
-    
-    // Reset to first page
     AppState.currentPage = 1;
 }
 
-/**
- * Sort repositories based on current sort settings
- */
 function sortRepositories() {
     const field = AppState.sortField;
     const order = AppState.sortOrder === 'asc' ? 1 : -1;
-    
+
     AppState.filteredRepos.sort((a, b) => {
         let aVal, bVal;
-        
+
         switch (field) {
             case 'name':
                 aVal = a.name.toLowerCase();
@@ -295,7 +262,7 @@ function sortRepositories() {
                 aVal = a.name.toLowerCase();
                 bVal = b.name.toLowerCase();
         }
-        
+
         if (aVal < bVal) return -1 * order;
         if (aVal > bVal) return 1 * order;
         return 0;
@@ -330,14 +297,6 @@ function handleSort(event) {
     AppState.sortOrder = value[1] || 'desc';
     sortRepositories();
     renderDashboard();
-    updateSortOrderIcon();
-}
-
-function toggleSortOrder() {
-    AppState.sortOrder = AppState.sortOrder === 'asc' ? 'desc' : 'asc';
-    sortRepositories();
-    renderDashboard();
-    updateSortOrderIcon();
 }
 
 function handleArchivedToggle(event) {
@@ -346,292 +305,421 @@ function handleArchivedToggle(event) {
     renderDashboard();
 }
 
-// =============================================================================
-// MULTI-SELECT FUNCTIONALITY
-// =============================================================================
+function toggleBulkActions() {
+    AppState.bulkActionMode = !AppState.bulkActionMode;
+    renderDashboard();
+}
 
-/**
- * Toggle repository selection
- * @param {string} repoName - Repository name
- */
+function toggleFailuresPanel() {
+    const panel = document.getElementById('failures-panel');
+    if (panel) {
+        panel.classList.toggle('open');
+    }
+}
+
 function toggleRepoSelection(repoName) {
-    const index = AppState.selectedRepos.indexOf(repoName);
-    if (index > -1) {
-        AppState.selectedRepos.splice(index, 1);
+    if (AppState.selectedRepos.has(repoName)) {
+        AppState.selectedRepos.delete(repoName);
     } else {
-        AppState.selectedRepos.push(repoName);
+        AppState.selectedRepos.add(repoName);
     }
-    updateBulkActionsVisibility();
-    renderRepoGrid(); // Re-render to update checkboxes
+    renderDashboard();
 }
 
-/**
- * Select all visible repositories
- */
 function selectAllRepos() {
-    const visibleRepos = AppState.filteredRepos.slice(
-        (AppState.currentPage - 1) * AppState.itemsPerPage,
-        AppState.currentPage * AppState.itemsPerPage
-    );
-    AppState.selectedRepos = [...new Set([...AppState.selectedRepos, ...visibleRepos.map(r => r.name)])];
-    updateBulkActionsVisibility();
-    renderRepoGrid();
+    AppState.filteredRepos.forEach(repo => AppState.selectedRepos.add(repo.name));
+    renderDashboard();
 }
 
-/**
- * Clear all repository selections
- */
-function clearSelection() {
-    AppState.selectedRepos = [];
-    updateBulkActionsVisibility();
-    renderRepoGrid();
+function clearRepoSelection() {
+    AppState.selectedRepos.clear();
+    renderDashboard();
 }
 
-/**
- * Update bulk actions bar visibility
- */
-function updateBulkActionsVisibility() {
-    const bar = document.getElementById('bulk-actions-bar');
-    const count = document.getElementById('selected-count');
-    
-    if (AppState.selectedRepos.length > 0) {
-        bar.style.display = 'block';
-        count.textContent = `${AppState.selectedRepos.length} repository${AppState.selectedRepos.length === 1 ? '' : 'ies'} selected`;
-    } else {
-        bar.style.display = 'none';
+// =============================================================================
+// WORKFLOW ACTIONS
+// =============================================================================
+
+async function triggerWorkflow(owner, repo, workflowId) {
+    const token = prompt('Enter your GitHub PAT (Personal Access Token) with repo and workflow scopes:');
+    if (!token) {
+        alert('Workflow trigger cancelled. PAT required.');
+        return;
+    }
+
+    try {
+        const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflowId}/dispatches`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `token ${token}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                ref: 'main',
+                inputs: {
+                    repository: repo,
+                    mode: 'single'
+                }
+            })
+        });
+
+        if (response.ok) {
+            alert(`✅ Workflow "${workflowId}" triggered successfully on ${repo}!`);
+        } else {
+            const error = await response.json();
+            alert(`❌ Failed to trigger workflow: ${error.message}`);
+        }
+    } catch (error) {
+        alert(`❌ Error triggering workflow: ${error.message}`);
     }
 }
 
-// =============================================================================
-// REPOSITORY DETAILS MODAL
-// =============================================================================
+async function bulkTriggerWorkflow(workflowId) {
+    if (AppState.selectedRepos.size === 0) {
+        alert('Please select repositories first.');
+        return;
+    }
 
-/**
- * Show repository details modal
- * @param {string} repoName - Repository name
- */
-function showRepoDetails(repoName) {
-    const repo = AppState.repositories.find(r => r.name === repoName);
-    if (!repo) return;
-    
-    // Create modal HTML
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.innerHTML = createRepoDetailsModal(repo);
-    document.body.appendChild(modal);
-    
-    // Add close functionality
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal || e.target.classList.contains('modal-close')) {
-            modal.remove();
+    const token = prompt('Enter your GitHub PAT (Personal Access Token) with repo and workflow scopes:');
+    if (!token) return;
+
+    const owner = CONFIG.orgName;
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const repo of AppState.selectedRepos) {
+        try {
+            const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflowId}/dispatches`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ ref: 'main' })
+            });
+
+            if (response.ok) {
+                successCount++;
+            } else {
+                failCount++;
+            }
+        } catch (error) {
+            failCount++;
         }
-    });
-    
-    // Prevent body scroll
-    document.body.style.overflow = 'hidden';
+    }
+
+    alert(`Bulk trigger complete:\n✅ Success: ${successCount}\n❌ Failed: ${failCount}`);
 }
 
-/**
- * Create repository details modal HTML
- * @param {Object} repo - Repository data
- * @returns {string} Modal HTML
- */
-function createRepoDetailsModal(repo) {
-    const healthConfig = CONFIG.healthStatusConfig[repo.health_status];
-    const languageClass = repo.language ? repo.language.toLowerCase().replace(/[^a-z]/g, '-') : '';
-    
-    return `
-        <div class="modal">
-            <div class="modal-header">
-                <div class="modal-title">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                    </svg>
-                    ${repo.name}
+async function installWorkflow(owner, repo, workflowType) {
+    const token = prompt('Enter your GitHub PAT (Personal Access Token) with repo scope:');
+    if (!token) return;
+
+    const workflowFiles = {
+        'health-check': { name: 'org-repo-health-check.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/org-repo-health-check.yml' },
+        'dependabot-batch': { name: 'org-dependabot-batch-manager.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/org-dependabot-batch-manager.yml' },
+        'pr-swarm': { name: 'org-pr-swarm-manager.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/org-pr-swarm-manager.yml' },
+        'self-heal': { name: 'org-self-heal.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/org-self-heal.yml' },
+        'conflict-detector': { name: 'org-automation-conflict-detector.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/org-automation-conflict-detector.yml' },
+        'agents-manager': { name: 'autonomous-agents-manager.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/autonomous-agents-manager.yml' },
+        'pages-setup': { name: 'pages-auto-setup.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/pages-auto-setup.yml' }
+    };
+
+    const workflow = workflowFiles[workflowType];
+    if (!workflow) {
+        alert('Invalid workflow type.');
+        return;
+    }
+
+    try {
+        const contentResponse = await fetch(workflow.url);
+        const content = await contentResponse.text();
+
+        const createResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/.github/workflows/${workflow.name}`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `token ${token}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: `chore: add ${workflow.name} from Org Brain`,
+                content: btoa(content)
+            })
+        });
+
+        if (createResponse.ok) {
+            alert(`✅ Workflow ${workflow.name} installed successfully on ${repo}!`);
+        } else {
+            const error = await createResponse.json();
+            alert(`❌ Failed to install workflow: ${error.message}`);
+        }
+    } catch (error) {
+        alert(`❌ Error installing workflow: ${error.message}`);
+    }
+}
+
+async function runCodeAnalysis(owner, repo) {
+    const token = prompt('Enter your GitHub PAT (Personal Access Token) with repo and workflow scopes:');
+    if (!token) return;
+
+    try {
+        const response = await fetch(`https://api.github.com/repos/${owner}/Org-Brain/actions/workflows/analyze-code.yml/dispatches`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `token ${token}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                ref: 'main',
+                inputs: { repo: repo, owner: owner }
+            })
+        });
+
+        if (response.ok) {
+            alert(`✅ Code analysis started for ${repo}!\n\nResults will be available in the dashboard once complete.`);
+        } else {
+            const error = await response.json();
+            alert(`❌ Failed to start analysis: ${error.message}`);
+        }
+    } catch (error) {
+        alert(`❌ Error starting analysis: ${error.message}`);
+    }
+}
+
+async function runOneClickSetup(owner, repo) {
+    const token = prompt('Enter your GitHub PAT (Personal Access Token) with repo and workflow scopes:');
+    if (!token) return;
+
+    if (!confirm(`⚠️ This will install all Org Brain workflows to ${repo} and configure settings.\n\nContinue?`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`https://api.github.com/repos/${owner}/Org-Brain/actions/workflows/autonomous-setup.yml/dispatches`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `token ${token}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                ref: 'main',
+                inputs: {
+                    target_repo: repo,
+                    mode: 'single'
+                }
+            })
+        });
+
+        if (response.ok) {
+            alert(`✅ One-Click Setup started for ${repo}!\n\nThis will:\n- Install all workflows\n- Configure permissions\n- Run initial scans\n\nCheck the Actions tab for progress.`);
+        } else {
+            const error = await response.json();
+            alert(`❌ Failed to start setup: ${error.message}`);
+        }
+    } catch (error) {
+        alert(`❌ Error starting setup: ${error.message}`);
+    }
+}
+
+async function showAnalysisModal(owner, repo) {
+    const analysis = await fetchAnalysisResults(repo);
+
+    let content = analysis ? `
+        <div class="analysis-results">
+            <h3>Analysis Results for ${repo}</h3>
+            <p class="analysis-date">Analyzed: ${new Date(analysis.analyzed_at).toLocaleString()}</p>
+
+            <div class="health-score-display">
+                <div class="health-score-circle ${analysis.health_status}">
+                    <span class="score">${analysis.health_score}</span>
                 </div>
-                <button class="modal-close">&times;</button>
+                <span class="health-status">${analysis.health_status.toUpperCase()}</span>
             </div>
-            
-            <div class="modal-body">
-                <div class="repo-details-grid">
-                    <div class="detail-section">
-                        <h4>Repository Info</h4>
-                        <div class="detail-grid">
-                            <div class="detail-item">
-                                <span class="detail-label">Owner:</span>
-                                <span class="detail-value">${repo.owner?.login || 'Unknown'}</span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Language:</span>
-                                <span class="detail-value">
-                                    ${repo.language ? `<span class="language-dot ${languageClass}"></span>${repo.language}` : 'Not specified'}
-                                </span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Health:</span>
-                                <span class="detail-value">
-                                    <span class="health-badge" style="background-color: ${healthConfig.bgColor}; color: ${healthConfig.color}">
-                                        ${healthConfig.label}
-                                    </span>
-                                </span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Visibility:</span>
-                                <span class="detail-value">${repo.private ? 'Private' : 'Public'}</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="detail-section">
-                        <h4>Statistics</h4>
-                        <div class="stats-grid">
-                            <div class="stat-item">
-                                <div class="stat-number">${formatNumber(repo.stargazers_count)}</div>
-                                <div class="stat-label">Stars</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-number">${formatNumber(repo.forks_count)}</div>
-                                <div class="stat-label">Forks</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-number">${formatNumber(repo.open_issues_count)}</div>
-                                <div class="stat-label">Issues</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-number">${repo.size} KB</div>
-                                <div class="stat-label">Size</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="detail-section">
-                        <h4>Description</h4>
-                        <p class="repo-description-full">${escapeHtml(repo.description || 'No description available.')}</p>
-                    </div>
-                    
-                    ${repo.topics && repo.topics.length > 0 ? `
-                        <div class="detail-section">
-                            <h4>Topics</h4>
-                            <div class="topics-list">
-                                ${repo.topics.map(t => `<span class="topic-tag">${escapeHtml(t)}</span>`).join('')}
-                            </div>
-                        </div>
-                    ` : ''}
+
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <span class="metric-label">Code Quality</span>
+                    <span class="metric-value">${analysis.metrics.code_quality}</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">Documentation</span>
+                    <span class="metric-value">${analysis.metrics.documentation}</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">Testing</span>
+                    <span class="metric-value">${analysis.metrics.testing}</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">Security</span>
+                    <span class="metric-value">${analysis.metrics.security}</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">Maintenance</span>
+                    <span class="metric-value">${analysis.metrics.maintenance}</span>
                 </div>
             </div>
-            
-            <div class="modal-footer">
-                <div class="modal-actions">
-                    <a href="${repo.html_url}" target="_blank" rel="noopener" class="btn btn-primary">
-                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                            <polyline points="15 3 21 3 21 9"></polyline>
-                            <line x1="10" y1="14" x2="21" y2="3"></line>
-                        </svg>
-                        Open on GitHub
-                    </a>
-                    <button class="btn btn-secondary" onclick="runWorkflow('${repo.name}', 'health-check')">
-                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                        </svg>
-                        Run Health Check
-                    </button>
-                    <button class="btn btn-outline" onclick="runWorkflow('${repo.name}', 'analyze')">
-                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                            <polyline points="14 2 14 8 20 8"></polyline>
-                            <line x1="16" y1="13" x2="8" y2="13"></line>
-                            <line x1="16" y1="17" x2="8" y2="17"></line>
-                            <polyline points="10 9 9 9 8 9"></polyline>
-                        </svg>
-                        Analyze Code
-                    </button>
-                </div>
+
+            <div class="analysis-stats">
+                <h4>Repository Stats</h4>
+                <ul>
+                    <li>Total Files: ${analysis.stats.total_files}</li>
+                    <li>Code Files: ${analysis.stats.code_files}</li>
+                    <li>Documentation Files: ${analysis.stats.doc_files}</li>
+                    <li>Test Files: ${analysis.stats.test_files}</li>
+                </ul>
             </div>
         </div>
+    ` : `
+        <div class="analysis-pending">
+            <h3>No Analysis Available for ${repo}</h3>
+            <p>Run a new analysis to get code quality metrics and recommendations.</p>
+        </div>
     `;
+
+    content += `
+        <div class="analysis-actions">
+            <button onclick="runCodeAnalysis('${owner}', '${repo}')" class="btn btn-primary">
+                🔄 Run New Analysis
+            </button>
+            <button onclick="closeModal()" class="btn btn-secondary">
+                Close
+            </button>
+        </div>
+    `;
+
+    showModal(`Code Analysis: ${repo}`, content);
 }
 
-/**
- * Run workflow for a specific repository
- * @param {string} repoName - Repository name
- * @param {string} workflowType - Type of workflow to run
- */
-function runWorkflow(repoName, workflowType) {
-    alert(`Running ${workflowType} workflow for ${repoName}\n\nThis feature requires server-side implementation with GitHub API access.`);
+async function fetchAnalysisResults(repo) {
+    try {
+        const response = await fetch(`data/analysis/${repo}.json`);
+        if (response.ok) {
+            return await response.json();
+        }
+        return null;
+    } catch (error) {
+        return null;
+    }
 }
 
-// =============================================================================
-// BULK ACTIONS
-// =============================================================================
+function showWorkflowMenu(owner, repo, event) {
+    event.stopPropagation();
 
-/**
- * Run workflows for selected repositories
- */
-function runBulkWorkflows() {
-    if (AppState.selectedRepos.length === 0) return;
-    alert(`Running workflows for ${AppState.selectedRepos.length} repositories:\n\n${AppState.selectedRepos.join('\n')}\n\nThis feature requires server-side implementation.`);
+    const workflowsHtml = AVAILABLE_WORKFLOWS.map(wf => `
+        <button class="workflow-menu-item" onclick="triggerWorkflow('${owner}', '${repo}', '${wf.id}')">
+            ${wf.icon} ${wf.name}
+        </button>
+    `).join('');
+
+    const content = `
+        <div class="workflow-menu">
+            <h4>Run Workflow on ${repo}</h4>
+            ${workflowsHtml}
+        </div>
+    `;
+
+    showModal(`Workflow Menu: ${repo}`, content);
 }
 
-/**
- * Analyze selected repositories
- */
-function analyzeSelectedRepos() {
-    if (AppState.selectedRepos.length === 0) return;
-    alert(`Analyzing ${AppState.selectedRepos.length} repositories:\n\n${AppState.selectedRepos.join('\n')}\n\nThis feature requires server-side implementation.`);
+function showBulkWorkflowMenu() {
+    if (AppState.selectedRepos.size === 0) {
+        alert('Please select repositories first.');
+        return;
+    }
+
+    const workflowsHtml = AVAILABLE_WORKFLOWS.map(wf => `
+        <button class="workflow-menu-item" onclick="bulkTriggerWorkflow('${wf.id}')">
+            ${wf.icon} ${wf.name} (on ${AppState.selectedRepos.size} repos)
+        </button>
+    `).join('');
+
+    const content = `
+        <div class="workflow-menu">
+            <h4>Bulk Workflow Actions</h4>
+            <p>Selected: ${AppState.selectedRepos.size} repositories</p>
+            ${workflowsHtml}
+        </div>
+    `;
+
+    showModal('Bulk Workflow Actions', content);
 }
 
-/**
- * Manage selected repositories
- */
-function manageSelectedRepos() {
-    if (AppState.selectedRepos.length === 0) return;
-    alert(`Managing ${AppState.selectedRepos.length} repositories:\n\n${AppState.selectedRepos.join('\n')}\n\nThis feature requires server-side implementation.`);
+function showInstallMenu(owner, repo, event) {
+    event.stopPropagation();
+
+    const content = `
+        <div class="workflow-menu">
+            <h4>Install Workflows to ${repo}</h4>
+            <button class="workflow-menu-item" onclick="installWorkflow('${owner}', '${repo}', 'health-check')">🏥 Health Check</button>
+            <button class="workflow-menu-item" onclick="installWorkflow('${owner}', '${repo}', 'dependabot-batch')">📦 Dependabot Batch</button>
+            <button class="workflow-menu-item" onclick="installWorkflow('${owner}', '${repo}', 'pr-swarm')">🤖 PR Swarm Manager</button>
+            <button class="workflow-menu-item" onclick="installWorkflow('${owner}', '${repo}', 'self-heal')">🔧 Self-Heal</button>
+            <button class="workflow-menu-item" onclick="installWorkflow('${owner}', '${repo}', 'conflict-detector')">⚠️ Conflict Detector</button>
+            <button class="workflow-menu-item" onclick="installWorkflow('${owner}', '${repo}', 'agents-manager')">🤖 Agents Manager</button>
+            <button class="workflow-menu-item" onclick="installWorkflow('${owner}', '${repo}', 'pages-setup')">📄 Pages Setup</button>
+            <hr>
+            <button class="workflow-menu-item" onclick="runOneClickSetup('${owner}', '${repo}')" style="background-color: var(--color-success);">
+                🚀 One-Click Setup (All Workflows)
+            </button>
+        </div>
+    `;
+
+    showModal(`Install Workflows: ${repo}`, content);
 }
 
 // =============================================================================
 // RENDERING
 // =============================================================================
 
-/**
- * Render the entire dashboard
- */
 function renderDashboard() {
     renderStats();
     renderRepoGrid();
     renderPagination();
+    renderBulkActionsBar();
+    renderFailuresPanel();
 }
 
-/**
- * Render statistics cards
- */
 function renderStats() {
     const total = AppState.repositories.length;
-    const filtered = AppState.filteredRepos.length;
     const archived = AppState.repositories.filter(r => r.archived).length;
     const healthy = AppState.repositories.filter(r => r.health_status === 'healthy').length;
     const totalStars = AppState.repositories.reduce((sum, r) => sum + r.stargazers_count, 0);
     const totalForks = AppState.repositories.reduce((sum, r) => sum + r.forks_count, 0);
-    
+
+    // Get failure stats if available
+    let totalFailures = 0;
+    let reposWithFailures = 0;
+    if (AppState.workflowFailures) {
+        totalFailures = AppState.workflowFailures.scan_summary?.total_failures || 0;
+        reposWithFailures = AppState.workflowFailures.scan_summary?.repos_with_failures || 0;
+    }
+
     document.getElementById('stat-total').textContent = total;
     document.getElementById('stat-active').textContent = total - archived;
     document.getElementById('stat-healthy').textContent = healthy;
     document.getElementById('stat-stars').textContent = formatNumber(totalStars);
     document.getElementById('stat-forks').textContent = formatNumber(totalForks);
+
+    const statFailures = document.getElementById('stat-failures');
+    if (statFailures) {
+        statFailures.textContent = totalFailures;
+        statFailures.style.color = totalFailures > 0 ? 'var(--color-danger)' : 'var(--color-success)';
+    }
 }
 
-/**
- * Render repository grid
- */
 function renderRepoGrid() {
     const grid = document.getElementById('repo-grid');
     if (!grid) return;
-    
+
     const start = (AppState.currentPage - 1) * AppState.itemsPerPage;
     const end = start + AppState.itemsPerPage;
     const pageRepos = AppState.filteredRepos.slice(start, end);
-    
+
     if (pageRepos.length === 0) {
         grid.innerHTML = `
             <div class="empty-state">
@@ -642,42 +730,50 @@ function renderRepoGrid() {
         `;
         return;
     }
-    
+
     grid.innerHTML = pageRepos.map(repo => createRepoCard(repo)).join('');
 }
 
-/**
- * Create HTML for a single repository card
- * @param {Object} repo - Repository data
- * @returns {string} HTML string
- */
 function createRepoCard(repo) {
     const healthConfig = CONFIG.healthStatusConfig[repo.health_status];
     const languageClass = repo.language ? repo.language.toLowerCase().replace(/[^a-z]/g, '-') : '';
     const isArchived = repo.archived ? 'archived' : '';
-    const isSelected = AppState.selectedRepos?.includes(repo.name) ? 'checked' : '';
-    
+    const owner = CONFIG.orgName;
+    const isSelected = AppState.selectedRepos.has(repo.name);
+
+    // Get failure count for this repo
+    let failureCount = 0;
+    if (AppState.workflowFailures && AppState.workflowFailures.repositories) {
+        const repoData = AppState.workflowFailures.repositories.find(r => r.name === repo.name);
+        if (repoData) {
+            failureCount = repoData.failures?.length || 0;
+        }
+    }
+
     return `
-        <div class="repo-card ${isArchived}" data-repo="${repo.name}">
-            <div class="repo-card-header">
-                <div class="repo-selection">
-                    <input type="checkbox" class="repo-checkbox" data-repo="${repo.name}" ${isSelected} onchange="toggleRepoSelection('${repo.name}')">
+        <div class="repo-card ${isArchived} ${isSelected ? 'selected' : ''}" data-repo="${repo.name}">
+            ${AppState.bulkActionMode ? `
+                <div class="repo-select-overlay">
+                    <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleRepoSelection('${repo.name}')">
                 </div>
+            ` : ''}
+
+            <div class="repo-card-header">
                 <div class="repo-name">
-                    <span class="repo-name-text" onclick="showRepoDetails('${repo.name}')">
+                    <a href="${repo.html_url}" target="_blank" rel="noopener">
                         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
                         </svg>
                         ${repo.name}
-                    </span>
+                    </a>
                 </div>
                 <span class="health-badge" style="background-color: ${healthConfig.bgColor}; color: ${healthConfig.color}">
                     ${healthConfig.label}
                 </span>
             </div>
-            
+
             <p class="repo-description">${escapeHtml(repo.description)}</p>
-            
+
             <div class="repo-meta">
                 ${repo.language ? `
                     <span class="repo-language">
@@ -685,14 +781,14 @@ function createRepoCard(repo) {
                         ${repo.language}
                     </span>
                 ` : ''}
-                
+
                 ${repo.topics && repo.topics.length > 0 ? `
                     <div class="repo-topics">
                         ${repo.topics.slice(0, 3).map(t => `<span class="topic-tag">${escapeHtml(t)}</span>`).join('')}
                     </div>
                 ` : ''}
             </div>
-            
+
             <div class="repo-stats">
                 <span class="stat" title="Stars">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -718,106 +814,157 @@ function createRepoCard(repo) {
                     </svg>
                     ${formatNumber(repo.open_issues_count)}
                 </span>
+                ${failureCount > 0 ? `
+                    <span class="stat failure-badge" title="Workflow Failures">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                        ${failureCount}
+                    </span>
+                ` : ''}
             </div>
-            
+
             <div class="repo-card-footer">
                 <span class="last-updated">
                     Updated ${formatDate(repo.updated_at)}
                 </span>
                 <div class="repo-actions">
                     <a href="${repo.html_url}" target="_blank" rel="noopener" class="btn btn-sm">
-                        View Repo
+                        View
                     </a>
-                    ${CONFIG.enableCodeAnalysis ? `<button onclick="showAnalysisModal('${CONFIG.orgName}', '${repo.name}')" class="btn btn-sm btn-outline" title="Analyze Code">🔍 Analyze</button>` : ''}
-                    ${CONFIG.enableWorkflowTriggers ? `<button onclick="showWorkflowTriggerModal('${CONFIG.orgName}', '${repo.name}')" class="btn btn-sm btn-outline" title="Run Workflows">▶️ Run</button>` : ''}
-                    ${CONFIG.enableWorkflowInstallation ? `<button onclick="showWorkflowInstallModal('${CONFIG.orgName}', '${repo.name}')" class="btn btn-sm btn-outline" title="Install Workflows">📥 Install</button>` : ''}
+                    <button onclick="showAnalysisModal('${owner}', '${repo.name}')" class="btn btn-sm btn-outline" title="Analyze Code">
+                        🔍
+                    </button>
+                    <button onclick="showWorkflowMenu('${owner}', '${repo.name}', event)" class="btn btn-sm btn-primary" title="Run Workflow">
+                        ▶️
+                    </button>
+                    <button onclick="showInstallMenu('${owner}', '${repo.name}', event)" class="btn btn-sm btn-outline" title="Install Workflows">
+                        📥
+                    </button>
                 </div>
             </div>
-            
+
             ${repo.archived ? '<div class="archived-badge">Archived</div>' : ''}
         </div>
     `;
 }
 
-/**
- * Render pagination controls
- */
 function renderPagination() {
     const container = document.getElementById('pagination');
     if (!container) return;
-    
+
     const totalPages = Math.ceil(AppState.filteredRepos.length / AppState.itemsPerPage);
-    
+
     if (totalPages <= 1) {
         container.innerHTML = '';
         return;
     }
-    
+
     const pages = getPaginationPages(AppState.currentPage, totalPages);
-    
+
     container.innerHTML = `
-        <button class="pagination-btn" onclick="goToPage(1)" ${AppState.currentPage === 1 ? 'disabled' : ''}>
-            First
-        </button>
-        <button class="pagination-btn" onclick="goToPage(${AppState.currentPage - 1})" ${AppState.currentPage === 1 ? 'disabled' : ''}>
-            Previous
-        </button>
-        
+        <button class="pagination-btn" onclick="goToPage(1)" ${AppState.currentPage === 1 ? 'disabled' : ''}>First</button>
+        <button class="pagination-btn" onclick="goToPage(${AppState.currentPage - 1})" ${AppState.currentPage === 1 ? 'disabled' : ''}>Previous</button>
         ${pages.map(page => {
             if (page === '...') {
                 return '<span class="pagination-ellipsis">...</span>';
             }
             return `<button class="pagination-btn ${page === AppState.currentPage ? 'active' : ''}" onclick="goToPage(${page})">${page}</button>`;
         }).join('')}
-        
-        <button class="pagination-btn" onclick="goToPage(${AppState.currentPage + 1})" ${AppState.currentPage === totalPages ? 'disabled' : ''}>
-            Next
-        </button>
-        <button class="pagination-btn" onclick="goToPage(${totalPages})" ${AppState.currentPage === totalPages ? 'disabled' : ''}>
-            Last
-        </button>
+        <button class="pagination-btn" onclick="goToPage(${AppState.currentPage + 1})" ${AppState.currentPage === totalPages ? 'disabled' : ''}>Next</button>
+        <button class="pagination-btn" onclick="goToPage(${totalPages})" ${AppState.currentPage === totalPages ? 'disabled' : ''}>Last</button>
     `;
-    
-    // Update page info
+
     const start = (AppState.currentPage - 1) * AppState.itemsPerPage + 1;
     const end = Math.min(AppState.currentPage * AppState.itemsPerPage, AppState.filteredRepos.length);
     document.getElementById('page-info').textContent = `Showing ${start}-${end} of ${AppState.filteredRepos.length}`;
 }
 
-/**
- * Get pagination page numbers
- */
+function renderBulkActionsBar() {
+    const container = document.getElementById('bulk-actions-bar');
+    if (!container) return;
+
+    if (!AppState.bulkActionMode) {
+        container.style.display = 'none';
+        return;
+    }
+
+    container.style.display = 'flex';
+    container.innerHTML = `
+        <span class="bulk-info">${AppState.selectedRepos.size} repositories selected</span>
+        <button class="btn btn-sm" onclick="selectAllRepos()">Select All</button>
+        <button class="btn btn-sm" onclick="clearRepoSelection()">Clear Selection</button>
+        <button class="btn btn-sm btn-primary" onclick="showBulkWorkflowMenu()">▶️ Run Workflow</button>
+        <button class="btn btn-sm" onclick="bulkInstallWorkflows()">📥 Install Workflows</button>
+        <button class="btn btn-sm" onclick="bulkAnalyze()">🔍 Analyze All</button>
+    `;
+}
+
+function renderFailuresPanel() {
+    const container = document.getElementById('failures-panel-content');
+    if (!container) return;
+
+    if (!AppState.workflowFailures || AppState.workflowFailures.scan_summary?.total_failures === 0) {
+        container.innerHTML = `
+            <div class="no-failures">
+                <div class="no-failures-icon">✅</div>
+                <p>No workflow failures detected!</p>
+            </div>
+        `;
+        return;
+    }
+
+    const failures = AppState.workflowFailures.repositories
+        .filter(r => r.failures && r.failures.length > 0)
+        .flatMap(r => r.failures.map(f => ({ ...f, repo: r.name })));
+
+    container.innerHTML = `
+        <div class="failures-header">
+            <h4>Recent Failures (${AppState.workflowFailures.scan_summary.total_failures})</h4>
+            <button class="btn btn-sm" onclick="window.open('data/workflow-failures/summary.md', '_blank')">View Full Report</button>
+        </div>
+        <div class="failures-list">
+            ${failures.slice(0, 10).map(f => `
+                <div class="failure-item">
+                    <div class="failure-repo">${f.repo}</div>
+                    <div class="failure-workflow">${f.workflow}</div>
+                    <div class="failure-status">${f.conclusion}</div>
+                    <a href="${f.url}" target="_blank" class="btn btn-sm btn-outline">View Run</a>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
 function getPaginationPages(current, total) {
     const delta = 2;
     const range = [];
-    
+
     for (let i = Math.max(2, current - delta); i <= Math.min(total - 1, current + delta); i++) {
         range.push(i);
     }
-    
+
     if (current - delta > 2) {
         range.unshift('...');
     }
     if (current + delta < total - 1) {
         range.push('...');
     }
-    
+
     range.unshift(1);
     if (total > 1) {
         range.push(total);
     }
-    
+
     return range;
 }
 
-/**
- * Navigate to specific page
- * @param {number} page - Page number
- */
 function goToPage(page) {
     const totalPages = Math.ceil(AppState.filteredRepos.length / AppState.itemsPerPage);
     if (page < 1 || page > totalPages) return;
-    
+
     AppState.currentPage = page;
     renderRepoGrid();
     renderPagination();
@@ -831,7 +978,7 @@ function goToPage(page) {
 function showLoading(show) {
     const loader = document.getElementById('loading-indicator');
     const content = document.getElementById('main-content');
-    
+
     if (loader) {
         loader.style.display = show ? 'flex' : 'none';
     }
@@ -858,7 +1005,6 @@ function showError(message) {
 }
 
 function updateFiltersUI() {
-    // Update language filter
     const languageFilter = document.getElementById('language-filter');
     if (languageFilter) {
         languageFilter.innerHTML = `
@@ -867,26 +1013,15 @@ function updateFiltersUI() {
         `;
         languageFilter.value = AppState.selectedLanguage;
     }
-    
-    // Update health filter
+
     const healthFilter = document.getElementById('health-filter');
     if (healthFilter) {
         healthFilter.value = AppState.selectedHealth;
     }
-    
-    // Update archived toggle
+
     const archivedToggle = document.getElementById('archived-toggle');
     if (archivedToggle) {
         archivedToggle.checked = AppState.showArchived;
-    }
-}
-
-function updateSortOrderIcon() {
-    const icon = document.getElementById('sort-order-icon');
-    if (icon) {
-        icon.innerHTML = AppState.sortOrder === 'asc' 
-            ? '<path d="M12 19V5M5 12l7-7 7 7"/>'
-            : '<path d="M12 5v14M5 12l7 7 7-7"/>';
     }
 }
 
@@ -898,19 +1033,67 @@ function updateLastUpdated() {
 }
 
 function setupPaginationListeners() {
-    // Page size selector
     const pageSizeSelect = document.getElementById('page-size-select');
     if (pageSizeSelect) {
-        pageSizeSelect.innerHTML = CONFIG.pageSizeOptions.map(size => 
+        pageSizeSelect.innerHTML = CONFIG.pageSizeOptions.map(size =>
             `<option value="${size}" ${size === AppState.itemsPerPage ? 'selected' : ''}>${size} per page</option>`
         ).join('');
-        
+
         pageSizeSelect.addEventListener('change', (e) => {
             AppState.itemsPerPage = parseInt(e.target.value);
             AppState.currentPage = 1;
             renderRepoGrid();
             renderPagination();
         });
+    }
+}
+
+// Bulk action helpers
+function bulkInstallWorkflows() {
+    if (AppState.selectedRepos.size === 0) {
+        alert('Please select repositories first.');
+        return;
+    }
+    alert(`Bulk install feature coming soon for ${AppState.selectedRepos.size} repositories.`);
+}
+
+function bulkAnalyze() {
+    if (AppState.selectedRepos.size === 0) {
+        alert('Please select repositories first.');
+        return;
+    }
+    alert(`Bulk analysis feature coming soon for ${AppState.selectedRepos.size} repositories.`);
+}
+
+// =============================================================================
+// MODAL SYSTEM
+// =============================================================================
+
+function showModal(title, content) {
+    closeModal();
+
+    const modal = document.createElement('div');
+    modal.id = 'modal-overlay';
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>${escapeHtml(title)}</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                ${content}
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+}
+
+function closeModal() {
+    const modal = document.getElementById('modal-overlay');
+    if (modal) {
+        modal.remove();
     }
 }
 
@@ -945,7 +1128,7 @@ function formatDate(dateString) {
     const now = new Date();
     const diffMs = now - date;
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 0) return 'today';
     if (diffDays === 1) return 'yesterday';
     if (diffDays < 7) return `${diffDays} days ago`;
@@ -959,125 +1142,6 @@ function escapeHtml(text) {
     div.textContent = text || '';
     return div.innerHTML;
 }
-
-// =============================================================================
-// WORKFLOW TRIGGER FUNCTIONS
-// =============================================================================
-
-async function triggerWorkflow(owner, repo, workflowId) {
-    const token = prompt('Enter your GitHub PAT (Personal Access Token) with repo scope:');
-    if (!token) { alert('Workflow trigger cancelled. PAT required.'); return; }
-    try {
-        const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflowId}/dispatches`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `token ${token}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ ref: 'main' })
-        });
-        if (response.ok) { alert(`✅ Workflow triggered successfully on ${repo}!`); }
-        else { const error = await response.json(); alert(`❌ Failed to trigger workflow: ${error.message}`); }
-    } catch (error) { alert(`❌ Error triggering workflow: ${error.message}`); }
-}
-
-async function installWorkflow(owner, repo, workflowType) {
-    const token = prompt('Enter your GitHub PAT (Personal Access Token) with repo scope:');
-    if (!token) { alert('Workflow installation cancelled. PAT required.'); return; }
-    const workflowFiles = {
-        'health-check': { name: 'org-repo-health-check.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/org-repo-health-check.yml' },
-        'dependabot-batch': { name: 'org-dependabot-batch-manager.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/org-dependabot-batch-manager.yml' },
-        'pr-swarm': { name: 'org-pr-swarm-manager.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/org-pr-swarm-manager.yml' },
-        'self-heal': { name: 'org-self-heal.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/org-self-heal.yml' },
-        'conflict-detector': { name: 'org-automation-conflict-detector.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/org-automation-conflict-detector.yml' }
-    };
-    const workflow = workflowFiles[workflowType];
-    if (!workflow) { alert('Invalid workflow type.'); return; }
-    try {
-        const contentResponse = await fetch(workflow.url);
-        const content = await contentResponse.text();
-        const createResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/.github/workflows/${workflow.name}`, {
-            method: 'PUT',
-            headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: `chore: add ${workflow.name} from Org Brain`, content: btoa(content) })
-        });
-        if (createResponse.ok) { alert(`✅ Workflow ${workflow.name} installed successfully on ${repo}!`); }
-        else { const error = await createResponse.json(); alert(`❌ Failed to install workflow: ${error.message}`); }
-    } catch (error) { alert(`❌ Error installing workflow: ${error.message}`); }
-}
-
-async function runCodeAnalysis(owner, repo) {
-    const token = prompt('Enter your GitHub PAT (Personal Access Token) with repo and workflow scopes:');
-    if (!token) { alert('Analysis cancelled. PAT required.'); return; }
-    try {
-        const response = await fetch(`https://api.github.com/repos/${owner}/Org-Brain/actions/workflows/analyze-code.yml/dispatches`, {
-            method: 'POST',
-            headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ref: 'main', inputs: { repo: repo, owner: owner } })
-        });
-        if (response.ok) { alert(`✅ Code analysis started for ${repo}!\n\nResults will be available in the dashboard once complete.`); }
-        else { const error = await response.json(); alert(`❌ Failed to start analysis: ${error.message}`); }
-    } catch (error) { alert(`❌ Error starting analysis: ${error.message}`); }
-}
-
-async function fetchAnalysisResults(repo) {
-    try { const response = await fetch(`data/analysis/${repo}.json`); if (response.ok) { return await response.json(); } return null; } catch (error) { return null; }
-}
-
-async function showAnalysisModal(owner, repo) {
-    const analysis = await fetchAnalysisResults(repo);
-    let content = analysis ? `
-        <div class="analysis-results"><h3>Analysis Results for ${repo}</h3>
-        <p class="analysis-date">Analyzed: ${new Date(analysis.analyzed_at).toLocaleString()}</p>
-        <div class="health-score-display"><div class="health-score-circle ${analysis.health_status}"><span class="score">${analysis.health_score}</span></div>
-        <span class="health-status">${analysis.health_status.toUpperCase()}</span></div>
-        <div class="metrics-grid">
-            <div class="metric-card"><span class="metric-label">Code Quality</span><span class="metric-value">${analysis.metrics.code_quality}</span></div>
-            <div class="metric-card"><span class="metric-label">Documentation</span><span class="metric-value">${analysis.metrics.documentation}</span></div>
-            <div class="metric-card"><span class="metric-label">Testing</span><span class="metric-value">${analysis.metrics.testing}</span></div>
-            <div class="metric-card"><span class="metric-label">Security</span><span class="metric-value">${analysis.metrics.security}</span></div>
-            <div class="metric-card"><span class="metric-label">Maintenance</span><span class="metric-value">${analysis.metrics.maintenance}</span></div>
-        </div></div>` : `<div class="analysis-pending"><h3>No Analysis Available for ${repo}</h3><p>Run a new analysis to get code quality metrics.</p></div>`;
-    content += `<div class="analysis-actions"><button onclick="runCodeAnalysis('${owner}', '${repo}')" class="btn btn-primary">🔄 Run New Analysis</button><button onclick="closeAnalysisModal()" class="btn btn-secondary">Close</button></div>`;
-    showModal(`Code Analysis: ${repo}`, content);
-}
-
-function closeAnalysisModal() { const modal = document.getElementById('modal-overlay'); if (modal) { modal.remove(); } }
-
-function showWorkflowInstallModal(owner, repo) {
-    const content = `<div class="workflow-install"><h3>Install Workflows to ${repo}</h3><p>Select a workflow to install:</p>
-        <div class="workflow-list">
-            <div class="workflow-option"><button onclick="installWorkflow('${owner}', '${repo}', 'health-check')" class="btn btn-outline">🏥 Health Check</button><span class="workflow-desc">Weekly health monitoring</span></div>
-            <div class="workflow-option"><button onclick="installWorkflow('${owner}', '${repo}', 'dependabot-batch')" class="btn btn-outline">📦 Dependabot Batch</button><span class="workflow-desc">Batch dependency updates</span></div>
-            <div class="workflow-option"><button onclick="installWorkflow('${owner}', '${repo}', 'pr-swarm')" class="btn btn-outline">🤖 PR Swarm Manager</button><span class="workflow-desc">Automated PR management</span></div>
-            <div class="workflow-option"><button onclick="installWorkflow('${owner}', '${repo}', 'self-heal')" class="btn btn-outline">🔧 Self-Heal</button><span class="workflow-desc">Automated code maintenance</span></div>
-            <div class="workflow-option"><button onclick="installWorkflow('${owner}', '${repo}', 'conflict-detector')" class="btn btn-outline">⚠️ Conflict Detector</button><span class="workflow-desc">Detect bot conflicts</span></div>
-        </div></div><div class="analysis-actions"><button onclick="closeModal()" class="btn btn-secondary">Close</button></div>`;
-    showModal(`Install Workflows: ${repo}`, content);
-}
-
-function showWorkflowTriggerModal(owner, repo) {
-    const content = `<div class="workflow-trigger"><h3>Run Workflows on ${repo}</h3><p>Select a workflow to trigger:</p>
-        <div class="workflow-list">
-            <div class="workflow-option"><button onclick="triggerWorkflow('${owner}', '${repo}', 'org-repo-health-check.yml')" class="btn btn-outline">🏥 Health Check</button></div>
-            <div class="workflow-option"><button onclick="triggerWorkflow('${owner}', '${repo}', 'org-dependabot-batch-manager.yml')" class="btn btn-outline">📦 Dependabot Batch</button></div>
-            <div class="workflow-option"><button onclick="triggerWorkflow('${owner}', '${repo}', 'org-pr-swarm-manager.yml')" class="btn btn-outline">🤖 PR Swarm</button></div>
-            <div class="workflow-option"><button onclick="triggerWorkflow('${owner}', '${repo}', 'org-self-heal.yml')" class="btn btn-outline">🔧 Self-Heal</button></div>
-            <div class="workflow-option"><button onclick="triggerWorkflow('${owner}', '${repo}', 'org-automation-conflict-detector.yml')" class="btn btn-outline">⚠️ Conflict Detector</button></div>
-        </div><p class="workflow-note">Note: You'll need a PAT with repo scope.</p></div><div class="analysis-actions"><button onclick="closeModal()" class="btn btn-secondary">Close</button></div>`;
-    showModal(`Trigger Workflows: ${repo}`, content);
-}
-
-function showModal(title, content) {
-    closeModal();
-    const modal = document.createElement('div');
-    modal.id = 'modal-overlay'; modal.className = 'modal-overlay';
-    modal.innerHTML = `<div class="modal-content"><div class="modal-header"><h2>${escapeHtml(title)}</h2><button class="modal-close" onclick="closeModal()">&times;</button></div><div class="modal-body">${content}</div></div>`;
-    document.body.appendChild(modal);
-}
-
-function closeModal() { const modal = document.getElementById('modal-overlay'); if (modal) { modal.remove(); } }
 
 function log(...args) {
     if (CONFIG.debug) {

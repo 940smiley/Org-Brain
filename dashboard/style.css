@@ -1157,25 +1157,315 @@ a:hover {
 }
 
 /* =============================================================================
-   SCROLLBAR STYLING
+   BULK ACTIONS BAR
    ============================================================================= */
 
-::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+#bulk-actions-bar {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: var(--color-bg-card);
+    border-top: 1px solid var(--color-border-primary);
+    padding: var(--spacing-md) var(--spacing-lg);
+    align-items: center;
+    gap: var(--spacing-md);
+    z-index: 100;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.3);
 }
 
-::-webkit-scrollbar-track {
-    background: var(--color-bg-primary);
+.bulk-info {
+    font-weight: 600;
+    color: var(--color-accent);
 }
 
-::-webkit-scrollbar-thumb {
-    background: var(--color-border-primary);
-    border-radius: var(--radius-full);
+/* =============================================================================
+   SELECTED REPO CARD
+   ============================================================================= */
+
+.repo-card.selected {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px var(--color-accent);
 }
 
-::-webkit-scrollbar-thumb:hover {
-    background: var(--color-text-tertiary);
+.repo-select-overlay {
+    position: absolute;
+    top: var(--spacing-md);
+    left: var(--spacing-md);
+    z-index: 10;
+}
+
+.repo-select-overlay input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+
+/* =============================================================================
+   FAILURES PANEL
+   ============================================================================= */
+
+#failures-panel {
+    position: fixed;
+    right: -400px;
+    top: 0;
+    bottom: 0;
+    width: 400px;
+    background-color: var(--color-bg-card);
+    border-left: 1px solid var(--color-border-primary);
+    z-index: 200;
+    transition: right 0.3s ease;
+    overflow-y: auto;
+    box-shadow: -4px 0 12px rgba(0, 0, 0, 0.3);
+}
+
+#failures-panel.open {
+    right: 0;
+}
+
+.failures-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-lg);
+    border-bottom: 1px solid var(--color-border-primary);
+}
+
+#failures-panel-content {
+    padding: var(--spacing-lg);
+}
+
+.no-failures {
+    text-align: center;
+    padding: var(--spacing-2xl);
+    color: var(--color-text-secondary);
+}
+
+.no-failures-icon {
+    font-size: 48px;
+    margin-bottom: var(--spacing-md);
+}
+
+.failures-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-lg);
+}
+
+.failures-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.failure-item {
+    background-color: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+}
+
+.failure-repo {
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.failure-workflow {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.failure-status {
+    display: inline-block;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background-color: var(--color-danger-bg);
+    color: var(--color-danger);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    margin-bottom: var(--spacing-sm);
+}
+
+/* =============================================================================
+   WORKFLOW MENU
+   ============================================================================= */
+
+.workflow-menu {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.workflow-menu h4 {
+    margin-bottom: var(--spacing-md);
+    color: var(--color-text-primary);
+}
+
+.workflow-menu-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background-color: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--radius-md);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    transition: var(--transition-fast);
+    text-align: left;
+    font-size: var(--font-size-sm);
+}
+
+.workflow-menu-item:hover {
+    background-color: var(--color-bg-hover);
+    border-color: var(--color-accent);
+}
+
+/* =============================================================================
+   FAILURE BADGE IN STATS
+   ============================================================================= */
+
+.failure-badge {
+    background-color: var(--color-danger-bg);
+    color: var(--color-danger);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-sm);
+}
+
+/* =============================================================================
+   MODAL ENHANCEMENTS
+   ============================================================================= */
+
+.modal-overlay {
+    overflow-y: auto;
+    padding: var(--spacing-lg);
+}
+
+.modal-content {
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.analysis-results,
+.analysis-pending {
+    padding: var(--spacing-md);
+}
+
+.health-score-display {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-lg);
+    margin: var(--spacing-lg) 0;
+    padding: var(--spacing-lg);
+    background-color: var(--color-bg-tertiary);
+    border-radius: var(--radius-lg);
+}
+
+.health-score-circle {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-3xl);
+    font-weight: 700;
+    border: 6px solid;
+    flex-shrink: 0;
+}
+
+.health-score-circle.healthy {
+    background-color: var(--color-healthy-bg);
+    border-color: var(--color-healthy);
+    color: var(--color-healthy);
+}
+
+.health-score-circle.warning {
+    background-color: var(--color-warning-health-bg);
+    border-color: var(--color-warning-health);
+    color: var(--color-warning-health);
+}
+
+.health-score-circle.unhealthy {
+    background-color: var(--color-unhealthy-bg);
+    border-color: var(--color-unhealthy);
+    color: var(--color-unhealthy);
+}
+
+.health-score-circle.critical {
+    background-color: var(--color-critical-bg);
+    border-color: var(--color-critical);
+    color: var(--color-critical);
+}
+
+.health-status {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: var(--spacing-md);
+    margin: var(--spacing-lg) 0;
+}
+
+.metric-card {
+    background-color: var(--color-bg-tertiary);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    text-align: center;
+}
+
+.metric-label {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    margin-bottom: var(--spacing-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.metric-value {
+    display: block;
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--color-accent);
+}
+
+.analysis-stats {
+    background-color: var(--color-bg-tertiary);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    margin-top: var(--spacing-lg);
+}
+
+.analysis-stats h4 {
+    margin-bottom: var(--spacing-sm);
+}
+
+.analysis-stats ul {
+    list-style: none;
+    padding: 0;
+}
+
+.analysis-stats li {
+    padding: var(--spacing-xs) 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.analysis-actions {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-lg);
+    padding-top: var(--spacing-lg);
+    border-top: 1px solid var(--color-border-primary);
 }
 
 /* =============================================================================

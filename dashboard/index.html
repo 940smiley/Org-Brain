@@ -1,50 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!--
-    =============================================================================
-    ORG BRAIN DASHBOARD
-    =============================================================================
-    
-    A modern, responsive dashboard for managing GitHub organization repositories.
-    Built with vanilla HTML, CSS, and JavaScript - no external frameworks.
-    
-    Features:
-    - Repository listing with search and filtering
-    - Health status indicators
-    - Statistics overview
-    - Responsive design
-    - Auto-refresh capability
-    
-    =============================================================================
-    -->
-    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Org Brain - Organization Command Center for GitHub repositories">
     <meta name="theme-color" content="#0d1117">
-    
     <title>Org Brain - Dashboard</title>
-    
-    <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
-    
-    <!-- Styles -->
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="dashboard">
-        <!-- =========================================================================
-             HEADER
-             ========================================================================= -->
+        <!-- HEADER -->
         <header class="dashboard-header">
             <div class="header-content">
-                <nav class="breadcrumbs">
-                    <a href="../index.html" class="breadcrumb-link">Home</a>
-                    <span class="breadcrumb-separator">/</span>
-                    <span class="breadcrumb-current">Dashboard</span>
-                </nav>
-                
                 <div class="header-brand">
                     <div class="header-logo">🧠</div>
                     <div class="header-title">
@@ -57,8 +26,23 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="header-actions">
+                    <button id="failures-panel-btn" class="refresh-btn" title="View workflow failures">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                        Failures
+                    </button>
+                    <button id="bulk-actions-btn" class="refresh-btn" title="Toggle bulk actions mode">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9 11 12 14 22 4"></polyline>
+                            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                        </svg>
+                        Bulk
+                    </button>
                     <button id="refresh-btn" class="refresh-btn" title="Refresh data">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="23 4 23 10 17 10"></polyline>
@@ -71,20 +55,18 @@
                 </div>
             </div>
         </header>
-        
-        <!-- =========================================================================
-             MAIN CONTENT
-             ========================================================================= -->
+
+        <!-- MAIN CONTENT -->
         <main class="dashboard-main" id="main-content">
             <!-- Loading Indicator -->
             <div id="loading-indicator" class="loading-container">
                 <div class="spinner"></div>
                 <div class="loading-text">Loading repositories...</div>
             </div>
-            
+
             <!-- Error Container -->
             <div id="error-container" class="error-container"></div>
-            
+
             <!-- Statistics Cards -->
             <section class="stats-container" aria-label="Repository Statistics">
                 <div class="stat-card">
@@ -107,46 +89,35 @@
                     <div class="stat-value" id="stat-forks">0</div>
                     <div class="stat-label">Total Forks</div>
                 </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-failures">0</div>
+                    <div class="stat-label">Failures</div>
+                </div>
             </section>
-            
+
             <!-- Filters -->
             <section class="filters-container" aria-label="Filters">
-                <!-- Bulk Actions Bar (hidden by default) -->
-                <div id="bulk-actions-bar" class="bulk-actions-bar" style="display: none;">
-                    <div class="bulk-actions-content">
-                        <span id="selected-count" class="selected-count">0 repositories selected</span>
-                        <div class="bulk-actions-buttons">
-                            <button id="select-all-btn" class="btn btn-sm">Select All</button>
-                            <button id="clear-selection-btn" class="btn btn-sm btn-outline">Clear</button>
-                            <div class="bulk-actions-divider"></div>
-                            <button id="bulk-run-workflows-btn" class="btn btn-sm btn-primary">Run Workflows</button>
-                            <button id="bulk-analyze-btn" class="btn btn-sm btn-secondary">Analyze</button>
-                            <button id="bulk-manage-btn" class="btn btn-sm btn-outline">Manage</button>
-                        </div>
-                    </div>
-                </div>
-                
                 <div class="search-box">
                     <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="11" cy="11" r="8"></circle>
                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                     </svg>
-                    <input 
-                        type="text" 
-                        id="search-input" 
-                        placeholder="Search repositories..." 
+                    <input
+                        type="text"
+                        id="search-input"
+                        placeholder="Search repositories..."
                         autocomplete="off"
                         aria-label="Search repositories"
                     >
                 </div>
-                
+
                 <div class="filter-group">
                     <label for="language-filter">Language:</label>
                     <select id="language-filter" aria-label="Filter by language">
                         <option value="all">All Languages</option>
                     </select>
                 </div>
-                
+
                 <div class="filter-group">
                     <label for="health-filter">Health:</label>
                     <select id="health-filter" aria-label="Filter by health status">
@@ -157,7 +128,7 @@
                         <option value="critical">Critical</option>
                     </select>
                 </div>
-                
+
                 <div class="sort-controls">
                     <label for="sort-select">Sort:</label>
                     <select id="sort-select" aria-label="Sort repositories">
@@ -174,13 +145,8 @@
                         <option value="updated-desc">Recently Updated</option>
                         <option value="updated-asc">Least Recently Updated</option>
                     </select>
-                    <button id="sort-order-toggle" class="sort-btn" title="Toggle sort order" aria-label="Toggle sort order">
-                        <svg id="sort-order-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 5v14M5 12l7 7 7-7"/>
-                        </svg>
-                    </button>
                 </div>
-                
+
                 <div class="toggle-group">
                     <label class="toggle-switch">
                         <input type="checkbox" id="archived-toggle" aria-label="Show archived repositories">
@@ -189,14 +155,14 @@
                     <label for="archived-toggle">Show Archived</label>
                 </div>
             </section>
-            
+
             <!-- Repository Grid -->
             <section aria-label="Repositories">
                 <div id="repo-grid" class="repo-grid">
                     <!-- Repository cards will be inserted here by JavaScript -->
                 </div>
             </section>
-            
+
             <!-- Pagination -->
             <nav class="pagination-container" aria-label="Pagination">
                 <div class="page-info">
@@ -210,10 +176,24 @@
                 </div>
             </nav>
         </main>
-        
-        <!-- =========================================================================
-             FOOTER
-             ========================================================================= -->
+
+        <!-- BULK ACTIONS BAR -->
+        <div id="bulk-actions-bar" class="bulk-actions-bar">
+            <!-- Content rendered by JavaScript -->
+        </div>
+
+        <!-- FAILURES PANEL -->
+        <div id="failures-panel">
+            <div class="failures-panel-header">
+                <h3>Workflow Failures</h3>
+                <button class="modal-close" onclick="toggleFailuresPanel()">&times;</button>
+            </div>
+            <div id="failures-panel-content">
+                <!-- Content rendered by JavaScript -->
+            </div>
+        </div>
+
+        <!-- FOOTER -->
         <footer class="dashboard-footer">
             <p id="footer-text">Powered by Org Brain</p>
             <p class="mt-1">
@@ -223,15 +203,9 @@
             </p>
         </footer>
     </div>
-    
-    <!-- =========================================================================
-         SCRIPTS
-         ========================================================================= -->
-    
-    <!-- Configuration (must be loaded first) -->
+
+    <!-- SCRIPTS -->
     <script src="config.js"></script>
-    
-    <!-- Main Application -->
     <script src="app.js"></script>
 </body>
 </html>
