@@ -23,6 +23,7 @@ const AppState = {
     selectedHealth: 'all',
     showArchived: CONFIG.showArchivedByDefault,
     languages: [],
+    selectedRepos: [], // New: selected repositories for bulk actions
     isLoading: false,
     error: null,
     lastUpdated: null
@@ -110,8 +111,31 @@ function setupEventListeners() {
         refreshBtn.addEventListener('click', () => loadRepositoryData());
     }
     
-    // Pagination
-    setupPaginationListeners();
+    // Bulk actions
+    const selectAllBtn = document.getElementById('select-all-btn');
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener('click', selectAllRepos);
+    }
+    
+    const clearSelectionBtn = document.getElementById('clear-selection-btn');
+    if (clearSelectionBtn) {
+        clearSelectionBtn.addEventListener('click', clearSelection);
+    }
+    
+    const bulkRunWorkflowsBtn = document.getElementById('bulk-run-workflows-btn');
+    if (bulkRunWorkflowsBtn) {
+        bulkRunWorkflowsBtn.addEventListener('click', runBulkWorkflows);
+    }
+    
+    const bulkAnalyzeBtn = document.getElementById('bulk-analyze-btn');
+    if (bulkAnalyzeBtn) {
+        bulkAnalyzeBtn.addEventListener('click', analyzeSelectedRepos);
+    }
+    
+    const bulkManageBtn = document.getElementById('bulk-manage-btn');
+    if (bulkManageBtn) {
+        bulkManageBtn.addEventListener('click', manageSelectedRepos);
+    }
     
     // Auto-refresh if enabled
     if (CONFIG.refreshInterval > 0) {
@@ -323,6 +347,250 @@ function handleArchivedToggle(event) {
 }
 
 // =============================================================================
+// MULTI-SELECT FUNCTIONALITY
+// =============================================================================
+
+/**
+ * Toggle repository selection
+ * @param {string} repoName - Repository name
+ */
+function toggleRepoSelection(repoName) {
+    const index = AppState.selectedRepos.indexOf(repoName);
+    if (index > -1) {
+        AppState.selectedRepos.splice(index, 1);
+    } else {
+        AppState.selectedRepos.push(repoName);
+    }
+    updateBulkActionsVisibility();
+    renderRepoGrid(); // Re-render to update checkboxes
+}
+
+/**
+ * Select all visible repositories
+ */
+function selectAllRepos() {
+    const visibleRepos = AppState.filteredRepos.slice(
+        (AppState.currentPage - 1) * AppState.itemsPerPage,
+        AppState.currentPage * AppState.itemsPerPage
+    );
+    AppState.selectedRepos = [...new Set([...AppState.selectedRepos, ...visibleRepos.map(r => r.name)])];
+    updateBulkActionsVisibility();
+    renderRepoGrid();
+}
+
+/**
+ * Clear all repository selections
+ */
+function clearSelection() {
+    AppState.selectedRepos = [];
+    updateBulkActionsVisibility();
+    renderRepoGrid();
+}
+
+/**
+ * Update bulk actions bar visibility
+ */
+function updateBulkActionsVisibility() {
+    const bar = document.getElementById('bulk-actions-bar');
+    const count = document.getElementById('selected-count');
+    
+    if (AppState.selectedRepos.length > 0) {
+        bar.style.display = 'block';
+        count.textContent = `${AppState.selectedRepos.length} repository${AppState.selectedRepos.length === 1 ? '' : 'ies'} selected`;
+    } else {
+        bar.style.display = 'none';
+    }
+}
+
+// =============================================================================
+// REPOSITORY DETAILS MODAL
+// =============================================================================
+
+/**
+ * Show repository details modal
+ * @param {string} repoName - Repository name
+ */
+function showRepoDetails(repoName) {
+    const repo = AppState.repositories.find(r => r.name === repoName);
+    if (!repo) return;
+    
+    // Create modal HTML
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = createRepoDetailsModal(repo);
+    document.body.appendChild(modal);
+    
+    // Add close functionality
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal || e.target.classList.contains('modal-close')) {
+            modal.remove();
+        }
+    });
+    
+    // Prevent body scroll
+    document.body.style.overflow = 'hidden';
+}
+
+/**
+ * Create repository details modal HTML
+ * @param {Object} repo - Repository data
+ * @returns {string} Modal HTML
+ */
+function createRepoDetailsModal(repo) {
+    const healthConfig = CONFIG.healthStatusConfig[repo.health_status];
+    const languageClass = repo.language ? repo.language.toLowerCase().replace(/[^a-z]/g, '-') : '';
+    
+    return `
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    ${repo.name}
+                </div>
+                <button class="modal-close">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="repo-details-grid">
+                    <div class="detail-section">
+                        <h4>Repository Info</h4>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <span class="detail-label">Owner:</span>
+                                <span class="detail-value">${repo.owner?.login || 'Unknown'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Language:</span>
+                                <span class="detail-value">
+                                    ${repo.language ? `<span class="language-dot ${languageClass}"></span>${repo.language}` : 'Not specified'}
+                                </span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Health:</span>
+                                <span class="detail-value">
+                                    <span class="health-badge" style="background-color: ${healthConfig.bgColor}; color: ${healthConfig.color}">
+                                        ${healthConfig.label}
+                                    </span>
+                                </span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Visibility:</span>
+                                <span class="detail-value">${repo.private ? 'Private' : 'Public'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <h4>Statistics</h4>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-number">${formatNumber(repo.stargazers_count)}</div>
+                                <div class="stat-label">Stars</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-number">${formatNumber(repo.forks_count)}</div>
+                                <div class="stat-label">Forks</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-number">${formatNumber(repo.open_issues_count)}</div>
+                                <div class="stat-label">Issues</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-number">${repo.size} KB</div>
+                                <div class="stat-label">Size</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <h4>Description</h4>
+                        <p class="repo-description-full">${escapeHtml(repo.description || 'No description available.')}</p>
+                    </div>
+                    
+                    ${repo.topics && repo.topics.length > 0 ? `
+                        <div class="detail-section">
+                            <h4>Topics</h4>
+                            <div class="topics-list">
+                                ${repo.topics.map(t => `<span class="topic-tag">${escapeHtml(t)}</span>`).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <div class="modal-actions">
+                    <a href="${repo.html_url}" target="_blank" rel="noopener" class="btn btn-primary">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                            <polyline points="15 3 21 3 21 9"></polyline>
+                            <line x1="10" y1="14" x2="21" y2="3"></line>
+                        </svg>
+                        Open on GitHub
+                    </a>
+                    <button class="btn btn-secondary" onclick="runWorkflow('${repo.name}', 'health-check')">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                        </svg>
+                        Run Health Check
+                    </button>
+                    <button class="btn btn-outline" onclick="runWorkflow('${repo.name}', 'analyze')">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                            <polyline points="10 9 9 9 8 9"></polyline>
+                        </svg>
+                        Analyze Code
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Run workflow for a specific repository
+ * @param {string} repoName - Repository name
+ * @param {string} workflowType - Type of workflow to run
+ */
+function runWorkflow(repoName, workflowType) {
+    alert(`Running ${workflowType} workflow for ${repoName}\n\nThis feature requires server-side implementation with GitHub API access.`);
+}
+
+// =============================================================================
+// BULK ACTIONS
+// =============================================================================
+
+/**
+ * Run workflows for selected repositories
+ */
+function runBulkWorkflows() {
+    if (AppState.selectedRepos.length === 0) return;
+    alert(`Running workflows for ${AppState.selectedRepos.length} repositories:\n\n${AppState.selectedRepos.join('\n')}\n\nThis feature requires server-side implementation.`);
+}
+
+/**
+ * Analyze selected repositories
+ */
+function analyzeSelectedRepos() {
+    if (AppState.selectedRepos.length === 0) return;
+    alert(`Analyzing ${AppState.selectedRepos.length} repositories:\n\n${AppState.selectedRepos.join('\n')}\n\nThis feature requires server-side implementation.`);
+}
+
+/**
+ * Manage selected repositories
+ */
+function manageSelectedRepos() {
+    if (AppState.selectedRepos.length === 0) return;
+    alert(`Managing ${AppState.selectedRepos.length} repositories:\n\n${AppState.selectedRepos.join('\n')}\n\nThis feature requires server-side implementation.`);
+}
+
+// =============================================================================
 // RENDERING
 // =============================================================================
 
@@ -387,17 +655,21 @@ function createRepoCard(repo) {
     const healthConfig = CONFIG.healthStatusConfig[repo.health_status];
     const languageClass = repo.language ? repo.language.toLowerCase().replace(/[^a-z]/g, '-') : '';
     const isArchived = repo.archived ? 'archived' : '';
+    const isSelected = AppState.selectedRepos?.includes(repo.name) ? 'checked' : '';
     
     return `
         <div class="repo-card ${isArchived}" data-repo="${repo.name}">
             <div class="repo-card-header">
+                <div class="repo-selection">
+                    <input type="checkbox" class="repo-checkbox" data-repo="${repo.name}" ${isSelected} onchange="toggleRepoSelection('${repo.name}')">
+                </div>
                 <div class="repo-name">
-                    <a href="${repo.html_url}" target="_blank" rel="noopener">
+                    <span class="repo-name-text" onclick="showRepoDetails('${repo.name}')">
                         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
                         </svg>
                         ${repo.name}
-                    </a>
+                    </span>
                 </div>
                 <span class="health-badge" style="background-color: ${healthConfig.bgColor}; color: ${healthConfig.color}">
                     ${healthConfig.label}
