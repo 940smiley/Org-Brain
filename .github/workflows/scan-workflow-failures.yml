@@ -147,22 +147,42 @@ jobs:
           echo "OWNER: $OWNER"
           echo "REPO: ${{ matrix.repo }}"
           echo "GH_TOKEN set: ${GH_TOKEN:+yes}"
+          echo "GITHUB_TOKEN set: ${GITHUB_TOKEN:+yes}"
+          export GH_TOKEN="${GH_TOKEN:-$GITHUB_TOKEN}"
           gh auth status 2>&1 || true
+          echo "Testing API call..."
+          gh api "/repos/$OWNER/${{ matrix.repo }}/actions/runs?per_page=5" 2>&1 | head -20 || echo "API call failed"
 
       - name: Scan repository for failures
         id: scan
         env:
           REPO: "${{ matrix.repo }}"
           MAX_RUNS: "${{ github.event.inputs.max_runs_per_repo || 30 }}"
+          API_TOKEN: "${{ secrets.ORG_AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}"
         run: |
           set -e
+          export GH_TOKEN="$API_TOKEN"
+          export GITHUB_TOKEN="$API_TOKEN"
+          
           echo "Scanning $OWNER/$REPO for workflow failures..."
+          echo "Token available: ${GH_TOKEN:+yes}"
           
-          # Get all workflow runs directly (not per-workflow)
-          runs_json=$(gh api "/repos/$OWNER/$REPO/actions/runs?per_page=$MAX_RUNS" 2>/dev/null || echo '{"workflow_runs":[]}')
+          # Get all workflow runs directly
+          echo "Fetching workflow runs..."
+          runs_json=$(gh api "/repos/$OWNER/$REPO/actions/runs?per_page=$MAX_RUNS" 2>&1)
+          api_exit_code=$?
           
-          if [ "$runs_json" = '{"workflow_runs":[]}' ] || [ -z "$runs_json" ]; then
-            echo "No workflow runs found"
+          if [ $api_exit_code -ne 0 ]; then
+            echo "API call failed with exit code: $api_exit_code"
+            echo "Response: $runs_json"
+            echo "has_failures=false" >> $GITHUB_OUTPUT
+            echo "failure_count=0" >> $GITHUB_OUTPUT
+            echo "[]" > /tmp/failures_final_$REPO.json
+            exit 0
+          fi
+          
+          if [ -z "$runs_json" ] || [ "$runs_json" = "null" ]; then
+            echo "Empty response from API"
             echo "has_failures=false" >> $GITHUB_OUTPUT
             echo "failure_count=0" >> $GITHUB_OUTPUT
             echo "[]" > /tmp/failures_final_$REPO.json
@@ -170,10 +190,25 @@ jobs:
           fi
           
           # Count total runs
-          total_runs=$(echo "$runs_json" | jq '.workflow_runs | length')
-          echo "Found $total_runs recent workflow runs"
+          total_runs=$(echo "$runs_json" | jq '.total_count // 0')
+          echo "Total runs available: $total_runs"
           
-          # Filter for failures using jq (avoiding subshell issues)
+          runs_array_length=$(echo "$runs_json" | jq '.workflow_runs | length')
+          echo "Runs in response: $runs_array_length"
+          
+          if [ "$runs_array_length" -eq 0 ]; then
+            echo "No workflow runs found"
+            echo "has_failures=false" >> $GITHUB_OUTPUT
+            echo "failure_count=0" >> $GITHUB_OUTPUT
+            echo "[]" > /tmp/failures_final_$REPO.json
+            exit 0
+          fi
+          
+          # Show conclusions for debugging
+          echo "Run conclusions:"
+          echo "$runs_json" | jq -r '.workflow_runs[] | "  \(.name): \(.conclusion // "in_progress")"'
+          
+          # Filter for failures using jq
           failures=$(echo "$runs_json" | jq '[.workflow_runs[] | select(.conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "cancelled") | {
             workflow: .name,
             path: .path,
@@ -191,12 +226,13 @@ jobs:
           }]')
           
           failure_count=$(echo "$failures" | jq 'length')
-          echo "Found $failure_count failures"
+          echo ""
+          echo "=== FAILURE COUNT: $failure_count ==="
           
-          # Debug: show failures if any
+          # Show failures if any
           if [ "$failure_count" -gt 0 ]; then
             echo "Failures found:"
-            echo "$failures" | jq '.[] | "\(.workflow): \(.conclusion)"'
+            echo "$failures" | jq -r '.[] | "  \(.workflow): \(.conclusion) - \(.url)"'
           fi
           
           # Save results
