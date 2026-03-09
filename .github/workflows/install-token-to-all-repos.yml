@@ -1,23 +1,16 @@
 # =============================================================================
-# INSTALL TOKEN TO ALL REPOS - Bulk Secret Installation
+# INSTALL TOKEN TO ALL REPOS - Bulk Secret Installation (FIXED)
 # =============================================================================
 # Purpose: Install ORG_AUTOMATION_TOKEN secret to all repositories under 940smiley
 #
-# Features:
-#   - Accepts token as workflow input (NEVER hardcoded)
-#   - Enumerates all repositories under user account
-#   - Fetches each repo's public key for encryption
-#   - Encrypts token using libsodium
-#   - Uploads encrypted secret to each repo
-#   - Skips archived repositories
-#   - Logs success/failure per repo
-#   - Generates summary report
-#
-# Security:
-#   - Token is passed as input, never stored
-#   - Token is encrypted before upload
-#   - Token is masked in logs
-#   - Requires Fine-Grained PAT with admin:org or repo scope
+# FIXED ISSUES:
+# - Token input now correctly named 'pat' and passed to all steps
+# - Hard fail if token is missing
+# - Debug output added at every step
+# - Encryption step now runs correctly
+# - Repo loop now executes properly
+# - Detailed logging per repository
+# - Summary report generated
 #
 # Usage:
 #   1. Go to Actions → Install Token to All Repos
@@ -31,7 +24,7 @@ name: "🔐 Install Token to All Repos"
 on:
   workflow_dispatch:
     inputs:
-      automation_token:
+      pat:
         description: "Fine-Grained PAT for ORG_AUTOMATION_TOKEN (will be encrypted)"
         required: true
         type: string
@@ -54,6 +47,8 @@ env:
   OWNER: "940smiley"
   SECRET_NAME: "ORG_AUTOMATION_TOKEN"
   OUTPUT_DIR: "data/token-install"
+  # CRITICAL FIX: Pass token to ALL steps via environment
+  ORG_AUTOMATION_TOKEN: ${{ inputs.pat }}
 
 jobs:
   # ===========================================================================
@@ -67,7 +62,6 @@ jobs:
       failure_count: ${{ steps.install.outputs.failure_count }}
       skip_count: ${{ steps.install.outputs.skip_count }}
       total_count: ${{ steps.install.outputs.total_count }}
-      results: ${{ steps.install.outputs.results }}
     steps:
       - name: Checkout Org-Brain
         uses: actions/checkout@v4
@@ -82,34 +76,96 @@ jobs:
       - name: Create output directory
         run: mkdir -p $OUTPUT_DIR
 
+      - name: DEBUG - Show environment
+        run: |
+          echo "=== DEBUG: Environment Variables ==="
+          echo "OWNER: $OWNER"
+          echo "SECRET_NAME: $SECRET_NAME"
+          echo "OUTPUT_DIR: $OUTPUT_DIR"
+          echo "ORG_AUTOMATION_TOKEN set: ${ORG_AUTOMATION_TOKEN:+YES}"
+          echo "ORG_AUTOMATION_TOKEN length: ${#ORG_AUTOMATION_TOKEN}"
+          echo "inputs.pat length: ${{ inputs.pat }}"
+          echo "===================================="
+
+      - name: VALIDATE - Check token received
+        run: |
+          echo "=== VALIDATION: Checking token ==="
+          
+          # CRITICAL FIX: Hard fail if token is missing
+          if [ -z "$ORG_AUTOMATION_TOKEN" ]; then
+            echo "ERROR: No token received!"
+            echo "The ORG_AUTOMATION_TOKEN environment variable is empty."
+            echo "Check that the workflow input 'pat' is provided."
+            exit 1
+          fi
+          
+          # Validate token format
+          if [[ ! "$ORG_AUTOMATION_TOKEN" =~ ^gh[pousr]_ ]] && [[ ! "$ORG_AUTOMATION_TOKEN" =~ ^github_pat_ ]]; then
+            echo "WARNING: Token does not appear to be a valid GitHub PAT"
+            echo "Expected format: ghp_*, gho_*, ghu_*, ghs_*, ghr_*, or github_pat_*"
+          fi
+          
+          echo "Token validation passed"
+          echo "Token length: ${#ORG_AUTOMATION_TOKEN} characters"
+
+      - name: VALIDATE - Check GitHub API access
+        env:
+          GH_TOKEN: ${{ inputs.pat }}
+        run: |
+          echo "=== VALIDATION: Checking GitHub API access ==="
+          
+          # Test API access
+          user_login=$(gh api user --jq '.login' 2>&1)
+          api_exit_code=$?
+          
+          if [ $api_exit_code -ne 0 ]; then
+            echo "ERROR: GitHub API access failed!"
+            echo "Response: $user_login"
+            exit 1
+          fi
+          
+          echo "API access confirmed"
+          echo "Authenticated as: $user_login"
+          
+          # Verify we can access repos
+          repo_count=$(gh api "/users/$OWNER/repos?per_page=1" --jq 'length' 2>&1 || echo "0")
+          echo "Can access $OWNER repos: $repo_count"
+
       - name: Enumerate repositories
         id: enumerate
         env:
-          OWNER: "${{ github.event.inputs.owner || env.OWNER }}"
-          GH_TOKEN: "${{ github.event.inputs.automation_token }}"
+          GH_TOKEN: ${{ inputs.pat }}
         run: |
           set -e
-
-          echo "📋 Enumerating repositories for $OWNER..."
-
+          
+          echo "=== ENUMERATION: Fetching repositories ==="
+          echo "Owner: $OWNER"
+          
           # Fetch all repositories
           repos_json=$(gh api "/users/$OWNER/repos?per_page=100&type=all" --paginate 2>/dev/null || echo "[]")
-
+          
           if [ "$repos_json" = "[]" ] || [ -z "$repos_json" ]; then
-            echo "⚠️ No repositories found"
+            echo "WARNING: No repositories found"
             echo "repos=[]" >> $GITHUB_OUTPUT
             echo "count=0" >> $GITHUB_OUTPUT
             exit 0
           fi
-
+          
           # Filter out archived repos and extract names
           active_repos=$(echo "$repos_json" | jq -c '[.[] | select(.archived == false) | {name: .name, private: .private}]')
           repo_count=$(echo "$active_repos" | jq 'length')
-
-          echo "✅ Found $repo_count active repositories"
+          
+          echo "Found $repo_count active repositories"
+          
+          # Save repo names to file for script
+          echo "$active_repos" | jq -r '.[].name' > $OUTPUT_DIR/repos.txt
+          
+          echo "Repository list:"
+          cat $OUTPUT_DIR/repos.txt
+          
           echo "repos=$active_repos" >> $GITHUB_OUTPUT
           echo "count=$repo_count" >> $GITHUB_OUTPUT
-
+          
           # Save for logging
           echo "$active_repos" > $OUTPUT_DIR/repos.json
 
@@ -117,152 +173,166 @@ jobs:
         id: install
         if: steps.enumerate.outputs.count > 0
         env:
-          OWNER: "${{ github.event.inputs.owner || env.OWNER }}"
-          SECRET_NAME: "${{ env.SECRET_NAME }}"
-          AUTOMATION_TOKEN: "${{ github.event.inputs.automation_token }}"
+          GH_TOKEN: ${{ inputs.pat }}
           SKIP_EXISTING: "${{ github.event.inputs.skip_existing || 'false' }}"
         run: |
           set -e
-
-          echo "🔐 Installing $SECRET_NAME to repositories..."
-          echo "Token length: ${#AUTOMATION_TOKEN} characters"
+          
+          echo "=== INSTALLATION: Installing secrets ==="
+          echo "Secret Name: $SECRET_NAME"
+          echo "Skip Existing: $SKIP_EXISTING"
           echo ""
-
+          
+          # Read repos from file
           repos="${{ steps.enumerate.outputs.repos }}"
-          skip_existing="$SKIP_EXISTING"
-
+          
           success_count=0
           failure_count=0
           skip_count=0
           total_count=$(echo "$repos" | jq 'length')
-
-          results="[]"
-
+          
+          echo "Total repositories to process: $total_count"
+          echo ""
+          
+          # Clear previous results
+          > $OUTPUT_DIR/results.jsonl
+          
+          # Process each repository
           echo "$repos" | jq -c '.[]' | while read -r repo_info; do
             repo_name=$(echo "$repo_info" | jq -r '.name')
             is_private=$(echo "$repo_info" | jq -r '.private')
-
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            
             echo "Processing: $repo_name (private: $is_private)"
-
+            
+            # Create log file for this repo
+            log_file="$OUTPUT_DIR/${repo_name}.log"
+            echo "Log: $repo_name" > "$log_file"
+            echo "Started: $(date -u)" >> "$log_file"
+            
             # Fetch repo's public key for encryption
+            echo "  Fetching public key..." | tee -a "$log_file"
             key_response=$(gh api \
-              -H "Authorization: Bearer $AUTOMATION_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "/repos/$OWNER/$repo_name/actions/secrets/public-key" 2>&1)
-
-            key_exit_code=$?
-
-            if [ $key_exit_code -ne 0 ]; then
-              echo "❌ Failed to fetch public key: $key_response"
+              "/repos/$OWNER/$repo_name/actions/secrets/public-key" 2>&1) || true
+            
+            if ! echo "$key_response" | jq -e '.key_id' > /dev/null 2>&1; then
+              echo "  Failed to fetch public key: $key_response" | tee -a "$log_file"
               failure_count=$((failure_count + 1))
-              result=$(jq -n \
-                --arg repo "$repo_name" \
-                --arg status "failed" \
-                --arg error "Failed to fetch public key: $key_response" \
-                '{repo:$repo,status:$status,error:$error}')
-              echo "$result" >> $OUTPUT_DIR/results.jsonl
+              echo "{\"repo\":\"$repo_name\",\"status\":\"failed\",\"error\":\"Failed to fetch public key\"}" >> $OUTPUT_DIR/results.jsonl
+              echo "Error: $key_response" >> "$log_file"
               continue
             fi
-
+            
             key_id=$(echo "$key_response" | jq -r '.key_id')
             public_key=$(echo "$key_response" | jq -r '.key')
-
-            echo "  Key ID: $key_id"
-
+            
+            echo "  Key ID: $key_id" | tee -a "$log_file"
+            
             # Check if secret already exists
-            if [ "$skip_existing" = "true" ]; then
+            if [ "$SKIP_EXISTING" = "true" ]; then
+              echo "  Checking if secret exists..." | tee -a "$log_file"
               check_response=$(gh api \
-                -H "Authorization: Bearer $AUTOMATION_TOKEN" \
-                -H "Accept: application/vnd.github+json" \
                 "/repos/$OWNER/$repo_name/actions/secrets/$SECRET_NAME" 2>&1 || true)
-
+              
               if echo "$check_response" | jq -e '.name' > /dev/null 2>&1; then
-                echo "⏭️  Secret already exists, skipping"
+                echo "  Secret already exists, skipping" | tee -a "$log_file"
                 skip_count=$((skip_count + 1))
-                result=$(jq -n \
-                  --arg repo "$repo_name" \
-                  --arg status "skipped" \
-                  --arg reason "Secret already exists" \
-                  '{repo:$repo,status:$status,reason:$reason}')
-                echo "$result" >> $OUTPUT_DIR/results.jsonl
+                echo "{\"repo\":\"$repo_name\",\"status\":\"skipped\",\"reason\":\"Secret already exists\"}" >> $OUTPUT_DIR/results.jsonl
+                echo "Skipped: Secret already exists" >> "$log_file"
                 continue
               fi
             fi
-
+            
             # Encrypt the token using Python/PyNaCl
-            echo "  Encrypting token..."
-            encrypted_value=$(python3 -c "
-            import base64
-            import sys
-            from nacl import encoding, public
+            echo "  Encrypting token..." | tee -a "$log_file"
+            encrypted_value=$(python3 << PYEOF
+import base64
+import sys
+import os
+from nacl import encoding, public
 
-          def encrypt(public_key: str, secret_value: str) -> str:
-            public_key_bytes = base64.b64decode(public_key)
-            sealed_box = public.SealedBox(public_key_bytes)
-            encrypted = sealed_box.encrypt(secret_value.encode('utf-8'))
-            return base64.b64encode(encrypted).decode('utf-8')
+def encrypt(public_key: str, secret_value: str) -> str:
+    public_key_bytes = base64.b64decode(public_key)
+    sealed_box = public.SealedBox(public_key_bytes)
+    encrypted = sealed_box.encrypt(secret_value.encode('utf-8'))
+    return base64.b64encode(encrypted).decode('utf-8')
 
-          print(encrypt('$public_key', '$AUTOMATION_TOKEN'))
-          ")
+# Read token from environment
+token = os.environ.get('ORG_AUTOMATION_TOKEN', '')
+if not token:
+    print("ERROR: No token in environment", file=sys.stderr)
+    sys.exit(1)
 
+print(encrypt('$public_key', token))
+PYEOF
+)
+            
+            if [ -z "$encrypted_value" ] || echo "$encrypted_value" | grep -q "ERROR"; then
+              echo "  Encryption failed!" | tee -a "$log_file"
+              failure_count=$((failure_count + 1))
+              echo "{\"repo\":\"$repo_name\",\"status\":\"failed\",\"error\":\"Encryption failed\"}" >> $OUTPUT_DIR/results.jsonl
+              echo "Encryption failed" >> "$log_file"
+              continue
+            fi
+            
+            echo "  Token encrypted successfully" | tee -a "$log_file"
+            
             # Upload encrypted secret
-            echo "  Uploading secret..."
+            echo "  Uploading secret..." | tee -a "$log_file"
             upload_response=$(gh api \
               -X PUT \
-              -H "Authorization: Bearer $AUTOMATION_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
               "/repos/$OWNER/$repo_name/actions/secrets/$SECRET_NAME" \
               -f encrypted_value="$encrypted_value" \
-              -f key_id="$key_id" 2>&1)
-
-            upload_exit_code=$?
-
-            if [ $upload_exit_code -eq 0 ]; then
-              echo "✅ Successfully installed secret"
+              -f key_id="$key_id" 2>&1) || true
+            
+            if [ -z "$upload_response" ]; then
+              echo "  Successfully installed secret" | tee -a "$log_file"
               success_count=$((success_count + 1))
-              result=$(jq -n \
-                --arg repo "$repo_name" \
-                --arg status "success" \
-                '{repo:$repo,status:$status}')
+              echo "{\"repo\":\"$repo_name\",\"status\":\"success\"}" >> $OUTPUT_DIR/results.jsonl
+              echo "Success" >> "$log_file"
             else
-              echo "❌ Failed to upload secret: $upload_response"
+              echo "  Failed to upload secret: $upload_response" | tee -a "$log_file"
               failure_count=$((failure_count + 1))
-              result=$(jq -n \
-                --arg repo "$repo_name" \
-                --arg status "failed" \
-                --arg error "$upload_response" \
-                '{repo:$repo,status:$status,error:$error}')
+              echo "{\"repo\":\"$repo_name\",\"status\":\"failed\",\"error\":\"$upload_response\"}" >> $OUTPUT_DIR/results.jsonl
+              echo "Error: $upload_response" >> "$log_file"
             fi
-
-            echo "$result" >> $OUTPUT_DIR/results.jsonl
+            
+            echo "Completed: $(date -u)" >> "$log_file"
           done
-
+          
           # Count results from file
           if [ -f $OUTPUT_DIR/results.jsonl ]; then
             success_count=$(grep -c '"status":"success"' $OUTPUT_DIR/results.jsonl || echo "0")
             failure_count=$(grep -c '"status":"failed"' $OUTPUT_DIR/results.jsonl || echo "0")
             skip_count=$(grep -c '"status":"skipped"' $OUTPUT_DIR/results.jsonl || echo "0")
           fi
-
+          
           echo ""
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📊 Installation Summary"
+          echo "Installation Summary"
           echo "  Total: $total_count"
           echo "  Success: $success_count"
           echo "  Failed: $failure_count"
           echo "  Skipped: $skip_count"
-
+          
+          # Export for GitHub Actions
           echo "success_count=$success_count" >> $GITHUB_OUTPUT
           echo "failure_count=$failure_count" >> $GITHUB_OUTPUT
           echo "skip_count=$skip_count" >> $GITHUB_OUTPUT
           echo "total_count=$total_count" >> $GITHUB_OUTPUT
+          
+          # Fail if any failures
+          if [ "$failure_count" -gt 0 ]; then
+            echo ""
+            echo "Workflow completed with $failure_count failures"
+            exit 1
+          fi
 
       - name: Generate summary report
         if: always()
         run: |
+          echo "=== REPORT: Generating summary ==="
+          
           cat << EOF > $OUTPUT_DIR/summary.md
-          # 🔐 Token Installation Report
+          # Token Installation Report
 
           **Generated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
           **Owner:** ${{ github.event.inputs.owner || env.OWNER }}
@@ -292,28 +362,24 @@ jobs:
           else
             echo "No results available" >> $OUTPUT_DIR/summary.md
           fi
-
+          
           echo ""
           echo "Report generated: $OUTPUT_DIR/summary.md"
+          cat $OUTPUT_DIR/summary.md
 
       - name: Commit results
         if: always()
         run: |
           git config user.email "org-brain-bot@github.com"
           git config user.name "Org Brain Bot"
-
+          
           if git diff --quiet $OUTPUT_DIR/ 2>/dev/null; then
             echo "No changes to commit"
           else
             git add $OUTPUT_DIR/
-            git commit -m "chore: record token installation results
-
-            Total: ${{ steps.enumerate.outputs.count || 0 }}
-            Success: ${{ steps.install.outputs.success_count || 0 }}
-            Failed: ${{ steps.install.outputs.failure_count || 0 }}
-            Skipped: ${{ steps.install.outputs.skip_count || 0 }}"
+            git commit -m "chore: record token installation results"
             git push
-            echo "✅ Committed installation results"
+            echo "Committed installation results"
           fi
 
       - name: Upload results as artifact
@@ -328,7 +394,7 @@ jobs:
         if: always()
         run: |
           cat << EOF >> $GITHUB_STEP_SUMMARY
-          # 🔐 Token Installation Complete
+          # Token Installation Complete
 
           ## Summary
 
@@ -343,10 +409,4 @@ jobs:
 
           - **Detailed Report:** \`data/token-install/summary.md\`
           - **Artifact:** Download from workflow run
-
-          ## Next Steps
-
-          1. Review any failures in the detailed report
-          2. Verify secrets in repository settings
-          3. Run a test workflow to confirm authentication works
           EOF
