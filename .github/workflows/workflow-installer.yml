@@ -1,0 +1,176 @@
+# =============================================================================
+# WORKFLOW INSTALLER - Cross-Repo Workflow Installation
+# =============================================================================
+# Purpose: Install Org Brain workflows to other repositories
+#
+# Why This Exists:
+# - Browser-based dashboard cannot access GitHub Secrets directly
+# - This workflow runs with repository secrets access
+# - Dashboard triggers THIS workflow, which then installs to target repos
+#
+# Usage:
+# 1. Dashboard calls this workflow via GitHub API
+# 2. This workflow receives target repo and workflow type
+# 3. This workflow installs workflow to target repo with proper auth
+#
+# Triggers:
+#   - workflow_dispatch from dashboard
+#   - API call with proper inputs
+# =============================================================================
+
+name: "📥 Workflow Installer"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repo:
+        description: "Target repository name"
+        required: true
+        type: string
+      workflow_type:
+        description: "Workflow type to install"
+        required: true
+        type: choice
+        options:
+          - health-check
+          - dependabot-batch
+          - pr-swarm
+          - self-heal
+          - conflict-detector
+          - agents-manager
+          - pages-setup
+          - all
+      install_all:
+        description: "Install all workflows"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: write
+
+env:
+  OWNER: "940smiley"
+  ORG_BRAIN_REPO: "Org-Brain"
+  GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
+
+jobs:
+  install:
+    name: "Install to ${{ inputs.target_repo }}"
+    runs-on: ubuntu-latest
+    outputs:
+      success: ${{ steps.install.outputs.success }}
+      workflows_installed: ${{ steps.install.outputs.workflows_installed }}
+      error: ${{ steps.install.outputs.error }}
+    steps:
+      - name: Checkout target repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.inputs.target_repo && format('{0}/{1}', env.OWNER, github.event.inputs.target_repo) }}
+          token: ${{ env.GH_TOKEN }}
+
+      - name: Create workflows directory
+        run: mkdir -p .github/workflows
+
+      - name: Install workflows
+        id: install
+        run: |
+          set -e
+
+          target_repo="${{ github.event.inputs.target_repo }}"
+          workflow_type="${{ github.event.inputs.workflow_type }}"
+          install_all="${{ github.event.inputs.install_all || 'false' }}"
+
+          if [ -z "$target_repo" ]; then
+            echo "error=Missing target_repo" >> $GITHUB_OUTPUT
+            echo "success=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Define workflow mappings
+          declare -A WORKFLOWS
+          WORKFLOWS=(
+            ["health-check"]="org-repo-health-check.yml"
+            ["dependabot-batch"]="org-dependabot-batch-manager.yml"
+            ["pr-swarm"]="org-pr-swarm-manager.yml"
+            ["self-heal"]="org-self-heal.yml"
+            ["conflict-detector"]="org-automation-conflict-detector.yml"
+            ["agents-manager"]="autonomous-agents-manager.yml"
+            ["pages-setup"]="pages-auto-setup.yml"
+          )
+
+          workflows_installed=()
+          success=true
+
+          # Determine which workflows to install
+          if [ "$install_all" = "true" ] || [ "$workflow_type" = "all" ]; then
+            install_list="health-check dependabot-batch pr-swarm self-heal conflict-detector agents-manager pages-setup"
+          else
+            install_list="$workflow_type"
+          fi
+
+          for wf_type in $install_list; do
+            wf_file="${WORKFLOWS[$wf_type]}"
+            if [ -z "$wf_file" ]; then
+              echo "⚠️ Unknown workflow type: $wf_type"
+              continue
+            fi
+
+            echo "Installing $wf_file to $target_repo..."
+
+            # Download workflow from Org Brain repo
+            workflow_url="https://raw.githubusercontent.com/$OWNER/$ORG_BRAIN_REPO/main/.github/workflows/$wf_file"
+
+            if curl -sL "$workflow_url" -o ".github/workflows/$wf_file"; then
+              echo "✅ Downloaded $wf_file"
+              workflows_installed+=("$wf_file")
+            else
+              echo "❌ Failed to download $wf_file"
+              success=false
+            fi
+          done
+
+          # Output results
+          workflows_json=$(printf '%s\n' "${workflows_installed[@]}" | jq -R . | jq -s .)
+          echo "workflows_installed=$workflows_json" >> $GITHUB_OUTPUT
+          echo "success=$success" >> $GITHUB_OUTPUT
+
+          if [ "$success" = "true" ]; then
+            echo "✅ Successfully installed ${#workflows_installed[@]} workflows to $target_repo"
+          else
+            echo "⚠️ Some workflows failed to install"
+          fi
+
+      - name: Commit and push workflows
+        if: steps.install.outputs.success == 'true'
+        run: |
+          git config user.email "org-brain-bot@github.com"
+          git config user.name "Org Brain Bot"
+
+          if git diff --quiet .github/workflows/ 2>/dev/null; then
+            echo "No workflow changes to commit"
+          else
+            git add .github/workflows/
+            git commit -m "chore: install Org Brain workflows
+
+            Automated installation by Org Brain Workflow Installer
+            Workflows: ${{ steps.install.outputs.workflows_installed }}"
+            git push
+            echo "✅ Committed and pushed workflows"
+          fi
+
+      - name: Generate output
+        if: always()
+        run: |
+          echo "## Workflow Installation Result" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Target Repo | ${{ github.event.inputs.target_repo || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Workflow Type | ${{ github.event.inputs.workflow_type || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Success | ${{ steps.install.outputs.success || 'false' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Workflows Installed | ${{ steps.install.outputs.workflows_installed || '[]' }} |" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ steps.install.outputs.error }}" ]; then
+            echo "| Error | ${{ steps.install.outputs.error }} |" >> $GITHUB_STEP_SUMMARY
+          fi

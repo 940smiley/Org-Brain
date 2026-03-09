@@ -413,24 +413,29 @@ function clearRepoSelection() {
 
 /**
  * Unified function to run workflow on a single repository
- * Uses automatic token retrieval - NO PROMPTS
+ * Uses workflow-dispatcher proxy for proper authentication
+ * NO PROMPTS - uses automatic token retrieval
  */
 async function runWorkflowOnRepo(owner, repoName, workflowId) {
     const headers = getGitHubHeaders();
-    
+
     showNotification(`Triggering ${workflowId} on ${repoName}...`, 'info');
 
     try {
+        // Use the workflow-dispatcher proxy for cross-repo dispatch
+        // This ensures proper authentication via GitHub Secrets
         const response = await fetch(
-            `https://api.github.com/repos/${owner}/${repoName}/actions/workflows/${workflowId}/dispatches`,
+            `https://api.github.com/repos/${owner}/Org-Brain/actions/workflows/workflow-dispatcher.yml/dispatches`,
             {
                 method: 'POST',
                 headers: headers,
                 body: JSON.stringify({
                     ref: 'main',
                     inputs: {
-                        repository: repoName,
-                        mode: 'single'
+                        target_repo: repoName,
+                        workflow_file: workflowId,
+                        workflow_inputs: JSON.stringify({ repository: repoName, mode: 'single' }),
+                        ref: 'main'
                     }
                 })
             }
@@ -514,59 +519,65 @@ async function runWorkflowOnSelectedRepos(owner, workflowId) {
 
 /**
  * Install workflow to a single repository
- * Uses automatic token - NO PROMPTS
+ * Uses workflow-installer proxy for proper authentication
+ * NO PROMPTS - uses automatic token retrieval
  */
 async function installWorkflowOnRepo(owner, repoName, workflowType) {
     const headers = getGitHubHeaders();
 
-    const workflowFiles = {
-        'health-check': { name: 'org-repo-health-check.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/org-repo-health-check.yml' },
-        'dependabot-batch': { name: 'org-dependabot-batch-manager.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/org-dependabot-batch-manager.yml' },
-        'pr-swarm': { name: 'org-pr-swarm-manager.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/org-pr-swarm-manager.yml' },
-        'self-heal': { name: 'org-self-heal.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/org-self-heal.yml' },
-        'conflict-detector': { name: 'org-automation-conflict-detector.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/org-automation-conflict-detector.yml' },
-        'agents-manager': { name: 'autonomous-agents-manager.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/autonomous-agents-manager.yml' },
-        'pages-setup': { name: 'pages-auto-setup.yml', url: 'https://raw.githubusercontent.com/940smiley/Org-Brain/main/.github/workflows/pages-auto-setup.yml' }
+    const workflowNames = {
+        'health-check': 'Health Check',
+        'dependabot-batch': 'Dependabot Batch',
+        'pr-swarm': 'PR Swarm Manager',
+        'self-heal': 'Self-Heal',
+        'conflict-detector': 'Conflict Detector',
+        'agents-manager': 'Agents Manager',
+        'pages-setup': 'Pages Setup'
     };
 
-    const workflow = workflowFiles[workflowType];
-    if (!workflow) {
-        showNotification('Invalid workflow type', 'error');
-        return { success: false, error: 'Invalid workflow type' };
-    }
+    const workflowDisplayName = workflowNames[workflowType] || workflowType;
 
-    showNotification(`Installing ${workflow.name} to ${repoName}...`, 'info');
+    showNotification(`Installing ${workflowDisplayName} to ${repoName}...`, 'info');
 
     try {
-        const contentResponse = await fetch(workflow.url);
-        if (!contentResponse.ok) {
-            throw new Error(`Failed to fetch workflow: ${contentResponse.status}`);
-        }
-        const content = await contentResponse.text();
-
-        const createResponse = await fetch(
-            `https://api.github.com/repos/${owner}/${repoName}/contents/.github/workflows/${workflow.name}`,
+        // Use the workflow-installer proxy for cross-repo installation
+        // This ensures proper authentication via GitHub Secrets
+        const response = await fetch(
+            `https://api.github.com/repos/${owner}/Org-Brain/actions/workflows/workflow-installer.yml/dispatches`,
             {
-                method: 'PUT',
+                method: 'POST',
                 headers: headers,
                 body: JSON.stringify({
-                    message: `chore: add ${workflow.name} from Org Brain`,
-                    content: btoa(content)
+                    ref: 'main',
+                    inputs: {
+                        target_repo: repoName,
+                        workflow_type: workflowType,
+                        install_all: 'false'
+                    }
                 })
             }
         );
 
-        if (createResponse.ok) {
-            showNotification(`✅ ${workflow.name} installed successfully on ${repoName}!`, 'success');
-            return { success: true, repo: repoName, workflow: workflow.name };
+        if (response.ok) {
+            showNotification(
+                `✅ ${workflowDisplayName} installation started for ${repoName}!\n\nCheck Actions tab for progress.`,
+                'success'
+            );
+            return { success: true, repo: repoName, workflow: workflowDisplayName };
         } else {
-            const error = await createResponse.json();
-            showNotification(`❌ Failed to install ${workflow.name}: ${error.message}`, 'error');
-            return { success: false, repo: repoName, workflow: workflow.name, error: error.message };
+            const error = await response.json();
+            showNotification(
+                `❌ Failed to install ${workflowDisplayName}: ${error.message}`,
+                'error'
+            );
+            return { success: false, repo: repoName, workflow: workflowDisplayName, error: error.message };
         }
     } catch (error) {
-        showNotification(`❌ Error installing workflow: ${error.message}`, 'error');
-        return { success: false, repo: repoName, workflow: workflow.name, error: error.message };
+        showNotification(
+            `❌ Error installing workflow: ${error.message}`,
+            'error'
+        );
+        return { success: false, repo: repoName, workflow: workflowDisplayName, error: error.message };
     }
 }
 

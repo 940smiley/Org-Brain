@@ -1,0 +1,184 @@
+# =============================================================================
+# WORKFLOW DISPATCHER - Cross-Repo Workflow Proxy
+# =============================================================================
+# Purpose: Proxy for dispatching workflows to other repositories
+#
+# Why This Exists:
+# - Browser-based dashboard cannot access GitHub Secrets directly
+# - This workflow runs with repository secrets access
+# - Dashboard triggers THIS workflow, which then dispatches to target repos
+#
+# Usage:
+# 1. Dashboard calls this workflow via GitHub API
+# 2. This workflow receives target repo and workflow details
+# 3. This workflow dispatches to target repo with proper auth
+#
+# Triggers:
+#   - workflow_dispatch from dashboard
+#   - API call with proper inputs
+# =============================================================================
+
+name: "📡 Workflow Dispatcher"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repo:
+        description: "Target repository name"
+        required: true
+        type: string
+      workflow_file:
+        description: "Workflow file to dispatch"
+        required: true
+        type: string
+      workflow_inputs:
+        description: "JSON string of workflow inputs"
+        required: false
+        type: string
+        default: "{}"
+      ref:
+        description: "Branch to run workflow on"
+        required: false
+        type: string
+        default: "main"
+
+permissions:
+  contents: write
+  actions: write
+  pull-requests: read
+
+env:
+  OWNER: "940smiley"
+  GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
+
+jobs:
+  dispatch:
+    name: "Dispatch to ${{ inputs.target_repo }}"
+    runs-on: ubuntu-latest
+    outputs:
+      success: ${{ steps.dispatch.outputs.success }}
+      run_id: ${{ steps.dispatch.outputs.run_id }}
+      error: ${{ steps.dispatch.outputs.error }}
+    steps:
+      - name: Install prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y jq curl gh
+
+      - name: Validate inputs
+        id: validate
+        run: |
+          target_repo="${{ github.event.inputs.target_repo }}"
+          workflow_file="${{ github.event.inputs.workflow_file }}"
+
+          if [ -z "$target_repo" ]; then
+            echo "error=Missing target_repo" >> $GITHUB_OUTPUT
+            echo "success=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          if [ -z "$workflow_file" ]; then
+            echo "error=Missing workflow_file" >> $GITHUB_OUTPUT
+            echo "success=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Validate repo name format
+          if ! echo "$target_repo" | grep -qE '^[a-zA-Z0-9._-]+$'; then
+            echo "error=Invalid repo name format" >> $GITHUB_OUTPUT
+            echo "success=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "success=true" >> $GITHUB_OUTPUT
+          echo "target_repo=$target_repo" >> $GITHUB_OUTPUT
+          echo "workflow_file=$workflow_file" >> $GITHUB_OUTPUT
+
+      - name: Dispatch workflow to target repository
+        id: dispatch
+        if: steps.validate.outputs.success == 'true'
+        env:
+          TARGET_REPO: "${{ steps.validate.outputs.target_repo }}"
+          WORKFLOW_FILE: "${{ steps.validate.outputs.workflow_file }}"
+          WORKFLOW_INPUTS: "${{ github.event.inputs.workflow_inputs }}"
+          REF: "${{ github.event.inputs.ref }}"
+        run: |
+          set -e
+
+          echo "Dispatching $WORKFLOW_FILE to $OWNER/$TARGET_REPO..."
+
+          # Parse workflow inputs JSON
+          if [ "$WORKFLOW_INPUTS" = "{}" ] || [ -z "$WORKFLOW_INPUTS" ]; then
+            inputs_json="{}"
+          else
+            inputs_json=$(echo "$WORKFLOW_INPUTS" | jq '.')
+          fi
+
+          # Dispatch workflow
+          response=$(gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/$OWNER/$TARGET_REPO/actions/workflows/$WORKFLOW_FILE/dispatches" \
+            -f ref="$REF" \
+            -f inputs="$inputs_json" 2>&1)
+
+          api_exit_code=$?
+
+          if [ $api_exit_code -eq 0 ]; then
+            echo "✅ Successfully dispatched $WORKFLOW_FILE to $TARGET_REPO"
+            echo "success=true" >> $GITHUB_OUTPUT
+            echo "run_id=dispatched" >> $GITHUB_OUTPUT
+            echo "error=" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Failed to dispatch workflow: $response"
+            echo "success=false" >> $GITHUB_OUTPUT
+            echo "run_id=" >> $GITHUB_OUTPUT
+            echo "error=$response" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate output
+        if: always()
+        run: |
+          echo "## Workflow Dispatch Result" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Target Repo | ${{ steps.validate.outputs.target_repo || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Workflow | ${{ steps.validate.outputs.workflow_file || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Success | ${{ steps.dispatch.outputs.success || 'false' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Run ID | ${{ steps.dispatch.outputs.run_id || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ steps.dispatch.outputs.error }}" ]; then
+            echo "| Error | ${{ steps.dispatch.outputs.error }} |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ===========================================================================
+  # BATCH DISPATCH (for multiple repos)
+  # ===========================================================================
+  dispatch-batch:
+    name: "Batch Dispatch"
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.batch_repos != '' }}
+    strategy:
+      max-parallel: 5
+      fail-fast: false
+      matrix:
+        repo: ${{ fromJson(github.event.inputs.batch_repos || '[]') }}
+    steps:
+      - name: Install prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y jq curl gh
+
+      - name: Dispatch to ${{ matrix.repo }}
+        env:
+          TARGET_REPO: "${{ matrix.repo }}"
+          WORKFLOW_FILE: "${{ github.event.inputs.workflow_file }}"
+        run: |
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/$OWNER/$TARGET_REPO/actions/workflows/$WORKFLOW_FILE/dispatches" \
+            -f ref="${{ github.event.inputs.ref || 'main' }}" \
+            -f inputs="${{ github.event.inputs.workflow_inputs || '{}' }}" || true
