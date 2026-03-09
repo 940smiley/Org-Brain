@@ -21,12 +21,12 @@ const path = require('path');
 // Load environment variables
 dotenv.config();
 
-// Service imports
-const RepoService = require('../services/repo-service');
-const WorkflowService = require('../services/workflow-service');
-const PagesService = require('../services/pages-service');
-const AutomationService = require('../services/automation-service');
-const AIService = require('../services/ai-service');
+// Route imports
+const pagesRoutes = require('./routes/pages-routes');
+const agentsRoutes = require('./routes/agents-routes');
+const workflowsRoutes = require('./routes/workflows-routes');
+const reposRoutes = require('./routes/repos-routes');
+const repoManagementRoutes = require('./routes/repo-management-routes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -34,14 +34,7 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '../public')));
-
-// Initialize services
-const repoService = new RepoService(process.env.GITHUB_TOKEN);
-const workflowService = new WorkflowService(process.env.GITHUB_TOKEN);
-const pagesService = new PagesService(process.env.GITHUB_TOKEN);
-const automationService = new AutomationService(process.env.GITHUB_TOKEN);
-const aiService = new AIService();
+app.use(express.static(path.join(__dirname, '../dashboard')));
 
 // =============================================================================
 // HEALTH CHECK
@@ -51,33 +44,119 @@ app.get('/api/health', (req, res) => {
     res.json({
         status: 'healthy',
         timestamp: new Date().toISOString(),
-        version: '2.0.0'
+        version: '2.0.0',
+        service: 'Org Brain API'
     });
 });
 
 // =============================================================================
-// REPOSITORY MANAGEMENT ENDPOINTS
+// ROUTE REGISTRATION
 // =============================================================================
 
-/**
- * GET /api/repos - List all user-owned repositories
- * Query params:
- *   - includeArchived: boolean
- *   - language: string (filter by language)
- *   - sort: 'stars' | 'updated' | 'name'
- */
-app.get('/api/repos', async (req, res) => {
-    try {
-        const options = {
-            includeArchived: req.query.includeArchived === 'true',
-            language: req.query.language,
-            sort: req.query.sort || 'updated'
-        };
-        
-        const repos = await repoService.listAllUserRepos(options);
-        res.json({ success: true, data: repos });
-    } catch (error) {
-        res.status(500).json({ 
+app.use('/api/pages', pagesRoutes);
+app.use('/api/agents', agentsRoutes);
+app.use('/api/workflows', workflowsRoutes);
+app.use('/api/repos', reposRoutes);
+app.use('/api/management', repoManagementRoutes);
+
+// =============================================================================
+// ROOT ENDPOINTS
+// =============================================================================
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '../dashboard/index.html'));
+});
+
+app.get('/api', (req, res) => {
+    res.json({
+        name: 'Org Brain API',
+        version: '2.0.0',
+        description: 'Autonomous organization management and repository automation',
+        endpoints: {
+            pages: {
+                description: 'GitHub Pages management',
+                routes: [
+                    'POST /api/pages/enable - Enable Pages for repository',
+                    'POST /api/pages/deploy-template - Deploy Pages template',
+                    'GET /api/pages/config/:repo - Get Pages configuration',
+                    'GET /api/pages/list - List repositories with Pages',
+                    'PATCH /api/pages/config/:repo - Update Pages config'
+                ]
+            },
+            agents: {
+                description: 'Autonomous agent management',
+                routes: [
+                    'POST /api/agents/initialize - Initialize agent',
+                    'POST /api/agents/:id/execute - Execute agent action',
+                    'GET /api/agents/:id/status - Get agent status',
+                    'GET /api/agents - List all agents',
+                    'GET /api/agents/:id/executions - Get execution history'
+                ]
+            },
+            workflows: {
+                description: 'Workflow generation and management',
+                routes: [
+                    'POST /api/workflows/generate - Generate workflow',
+                    'GET /api/workflows/templates - Get available templates',
+                    'POST /api/workflows/deploy - Deploy workflow',
+                    'POST /api/workflows/customize - Customize with AI'
+                ]
+            },
+            repos: {
+                description: 'Repository configuration',
+                routes: [
+                    'GET /api/repos/config - Get organization config',
+                    'POST /api/repos/config - Update organization config',
+                    'GET /api/repos/:repo/config - Get repo-specific config',
+                    'PUT /api/repos/:repo/config - Update repo config',
+                    'GET /api/repos/features/:feature - Get repos with feature'
+                ]
+            },
+            management: {
+                description: 'Advanced repository management',
+                routes: [
+                    'POST /api/management/audit - Audit repository',
+                    'POST /api/management/ai-customize - Get AI suggestions',
+                    'POST /api/management/bulk-enable - Bulk enable features',
+                    'GET /api/management/report - Generate report',
+                    'POST /api/management/sync-config - Sync configuration'
+                ]
+            }
+        }
+    });
+});
+
+// =============================================================================
+// ERROR HANDLING
+// =============================================================================
+
+app.use((err, req, res, next) => {
+    console.error('Error:', err);
+    res.status(500).json({
+        error: 'Internal server error',
+        message: err.message,
+        timestamp: new Date().toISOString()
+    });
+});
+
+app.use((req, res) => {
+    res.status(404).json({
+        error: 'Not found',
+        path: req.path
+    });
+});
+
+// =============================================================================
+// START SERVER
+// =============================================================================
+
+app.listen(PORT, () => {
+    console.log(`🧠 Org Brain API Server running on port ${PORT}`);
+    console.log(`📊 Dashboard: http://localhost:${PORT}/`);
+    console.log(`📚 API docs: http://localhost:${PORT}/api`);
+});
+
+module.exports = app; 
             success: false, 
             error: error.message 
         });

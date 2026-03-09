@@ -91,7 +91,7 @@ jobs:
           echo "🔍 Discovering repositories in organization: $ORG_NAME"
           
           # Fetch all repositories with details
-          repos_json=$(gh api "/users/$ORG_NAME/repos?per_page=100&type=all" --paginate)
+          repos_json=$(gh api "/orgs/$ORG_NAME/repos?per_page=100&type=all" --paginate)
           
           if [ "$INCLUDE_ARCHIVED" = "false" ]; then
             # Filter out archived repositories
