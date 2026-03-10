@@ -1234,34 +1234,30 @@ function showInstallTokenModal() {
                     <path d="M12 16h.01"></path>
                 </svg>
                 <h4>Security Notice</h4>
-                <p>This will install the ORG_AUTOMATION_TOKEN secret to ALL repositories under your account.</p>
+                <p><strong>Important:</strong> Token installation must be run from GitHub Actions UI, not from this dashboard.</p>
+                <p>Browser-based JavaScript cannot authenticate to GitHub API for security reasons.</p>
+                <p>When you click "Continue to Workflow", you will be taken to the GitHub Actions page where you can:</p>
                 <ul>
-                    <li>The token will be encrypted before upload</li>
-                    <li>The token will NOT be stored or logged</li>
-                    <li>Archived repositories will be skipped</li>
-                    <li>You need a Fine-Grained PAT with repo and admin:org scopes</li>
+                    <li>Click "Run workflow"</li>
+                    <li>Paste your Fine-Grained PAT</li>
+                    <li>Click "Run workflow" again</li>
+                    <li>The workflow will install the secret to ALL repositories</li>
                 </ul>
             </div>
             
             <div class="token-input-group">
-                <label for="automation-token-input">Fine-Grained PAT:</label>
+                <label for="automation-token-input">Your Fine-Grained PAT (for reference):</label>
                 <input type="password" id="automation-token-input" placeholder="ghp_..." autocomplete="off">
                 <p class="token-help">
                     Create a token with: <code>repo</code>, <code>admin:org</code>, and <code>workflow</code> scopes
+                    <br><strong>Do not share this token!</strong> You will paste it directly in GitHub Actions.
                 </p>
-            </div>
-            
-            <div class="token-options">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="skip-existing-token">
-                    Skip repositories that already have the secret
-                </label>
             </div>
         </div>
         
         <div class="analysis-actions">
             <button onclick="installTokenToAllRepos()" class="btn btn-primary">
-                🔐 Install to All Repos
+                🚀 Continue to Workflow
             </button>
             <button onclick="closeModal()" class="btn btn-secondary">Cancel</button>
         </div>
@@ -1272,60 +1268,43 @@ function showInstallTokenModal() {
 
 /**
  * Install automation token to all repositories
- * Dispatches the install-token-to-all-repos workflow
+ * NOTE: This must be run from GitHub Actions UI, not dashboard
+ * Browser-based JavaScript cannot authenticate to GitHub API for security reasons
  */
 async function installTokenToAllRepos() {
     const tokenInput = document.getElementById('automation-token-input');
     const skipExisting = document.getElementById('skip-existing-token');
-    
+
     if (!tokenInput || !tokenInput.value) {
         showNotification('Please enter your Fine-Grained PAT', 'error');
         return;
     }
-    
+
     const automationToken = tokenInput.value;
     const skipExistingValue = skipExisting ? skipExisting.checked : false;
-    
+
     // Validate token format (basic check)
     if (!automationToken.startsWith('ghp_') && !automationToken.startsWith('github_pat_')) {
         showNotification('Token should start with ghp_ or github_pat_', 'warning');
     }
-    
+
     closeModal();
-    
-    const headers = getGitHubHeaders();
-    
-    showNotification('Starting token installation to all repositories...', 'info');
-    
-    try {
-        const response = await fetch(
-            `https://api.github.com/repos/${CONFIG.orgName}/Org-Brain/actions/workflows/install-token-to-all-repos.yml/dispatches`,
-            {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify({
-                    ref: 'main',
-                    inputs: {
-                        pat: automationToken,
-                        owner: CONFIG.orgName,
-                        skip_existing: skipExistingValue.toString()
-                    }
-                })
-            }
-        );
-        
-        if (response.ok) {
-            showNotification(
-                `✅ Token installation started!\n\nThe workflow will install ORG_AUTOMATION_TOKEN to all repositories.\n\nCheck the Actions tab for progress.`,
-                'success'
-            );
-        } else {
-            const error = await response.json();
-            showNotification(`❌ Failed to start installation: ${error.message}`, 'error');
-        }
-    } catch (error) {
-        showNotification(`❌ Error starting installation: ${error.message}`, 'error');
-    }
+
+    // IMPORTANT: Browser cannot dispatch workflows with auth
+    // Instead, show instructions to run from Actions UI
+    showNotification(
+        '⚠️ For security, token installation must be run from GitHub Actions\n\n' +
+        'Click OK to open the workflow page, then:\n' +
+        '1. Click "Run workflow"\n' +
+        '2. Paste your PAT\n' +
+        '3. Click "Run workflow" again',
+        'info'
+    );
+
+    // Open the workflow page after a short delay
+    setTimeout(() => {
+        window.open(`https://github.com/${CONFIG.orgName}/Org-Brain/actions/workflows/install-token-to-all-repos.yml`, '_blank');
+    }, 2000);
 }
 
 // =============================================================================
