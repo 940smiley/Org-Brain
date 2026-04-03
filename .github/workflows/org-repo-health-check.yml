@@ -127,8 +127,6 @@ jobs:
       fail-fast: false
       matrix:
         repo: ${{ fromJson(needs.discover-repos.outputs.repo_list) }}
-    outputs:
-      metrics_${{ matrix.repo }}: ${{ steps.collect.outputs.metrics }}
     steps:
       - name: Install prerequisites
         run: |

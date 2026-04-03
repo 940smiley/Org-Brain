@@ -92,7 +92,7 @@ jobs:
           
           # Search for PRs by dependabot across all repos
           all_prs=$(gh search prs \
-            --org "$ORG_NAME" \
+            --owner "$ORG_NAME" \
             --author "dependabot[bot]" \
             --state open \
             --limit 500 \
@@ -494,6 +494,11 @@ jobs:
     steps:
       - name: Generate Summary
         run: |
+          security_count=$(echo '${{ needs.discover-dependabot-prs.outputs.security_prs }}' | jq 'length')
+          patch_count=$(echo '${{ needs.discover-dependabot-prs.outputs.patch_prs }}' | jq 'length')
+          minor_count=$(echo '${{ needs.discover-dependabot-prs.outputs.minor_prs }}' | jq 'length')
+          major_count=$(echo '${{ needs.discover-dependabot-prs.outputs.major_prs }}' | jq 'length')
+          minor_mode=$([ "$PRIORITY_MODE" = "batch-all" ] && echo "✅ Auto-merge enabled" || echo "⏭️ Skipped (priority mode)")
           cat << EOF >> $GITHUB_STEP_SUMMARY
           # 📦 Dependabot Batch Manager Report
           
@@ -504,10 +509,10 @@ jobs:
           | Organization | $ORG_NAME |
           | Priority Mode | $PRIORITY_MODE |
           | Total PRs Found | ${{ needs.discover-dependabot-prs.outputs.total_count }} |
-          | Security Updates | ${{ fromJson(needs.discover-dependabot-prs.outputs.security_prs) | length }} |
-          | Patch Updates | ${{ fromJson(needs.discover-dependabot-prs.outputs.patch_prs) | length }} |
-          | Minor Updates | ${{ fromJson(needs.discover-dependabot-prs.outputs.minor_prs) | length }} |
-          | Major Updates | ${{ fromJson(needs.discover-dependabot-prs.outputs.major_prs) | length }} |
+          | Security Updates | $security_count |
+          | Patch Updates | $patch_count |
+          | Minor Updates | $minor_count |
+          | Major Updates | $major_count |
           
           ## Processing Status
           
@@ -515,7 +520,7 @@ jobs:
           |-------------|--------|
           | Security | ✅ Auto-merge enabled (if CI passes) |
           | Patch | ✅ Auto-merge enabled (if CI passes) |
-          | Minor | ${{ github.event.inputs.priority_mode == 'batch-all' && '✅ Auto-merge enabled' || '⏭️ Skipped (priority mode)' }} |
+          | Minor | $minor_mode |
           | Major | 🏷️ Labeled for manual review |
           
           ## Notes

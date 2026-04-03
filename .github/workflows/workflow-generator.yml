@@ -56,7 +56,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  workflows: write
+  actions: write
 
 env:
   ORG_NAME: ${{ github.repository_owner }}

@@ -122,13 +122,13 @@ jobs:
       - name: Get repositories to process
         id: get-repos
         env:
-          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
+          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           if [ -n "$SPECIFIC_REPOS" ]; then
             # Use specific repos from input
-            repo_list="$SPECIFIC_REPOS"
-            repo_count=$(echo "$repo_list" | tr ',' '\n' | wc -l)
-            echo "📦 Using specified repositories: $repo_list"
+            repo_list=$(echo "$SPECIFIC_REPOS" | tr ',' '\n' | sed '/^$/d' | jq -R . | jq -sc .)
+            repo_count=$(echo "$repo_list" | jq 'length')
+            echo "📦 Using specified repositories: $SPECIFIC_REPOS"
           else
             # Discover all repositories
             echo "🔍 Discovering repositories in organization: $ORG_NAME"
@@ -136,7 +136,7 @@ jobs:
             repos_json=$(gh api "/users/$ORG_NAME/repos?per_page=100&type=all" --paginate)
             
             # Filter out archived repositories
-            active_repos=$(echo "$repos_json" | jq -r '[.[] | select(.archived == false) | .name] | join(",")')
+            active_repos=$(echo "$repos_json" | jq -c '[.[] | select(.archived == false) | .name]')
             repo_count=$(echo "$repos_json" | jq -r '[.[] | select(.archived == false)] | length')
             
             repo_list="$active_repos"
@@ -146,7 +146,7 @@ jobs:
           
           # Apply max_repos limit
           if [ "$MAX_REPOS" -gt 0 ] && [ "$repo_count" -gt "$MAX_REPOS" ]; then
-            repo_list=$(echo "$repo_list" | tr ',' '\n' | head -n "$MAX_REPOS" | tr '\n' ',' | sed 's/,$//')
+            repo_list=$(echo "$repo_list" | jq -c ".[0:$MAX_REPOS]")
             repo_count="$MAX_REPOS"
             echo "⚠️  Limited to $MAX_REPOS repositories"
           fi
@@ -166,10 +166,7 @@ jobs:
       max-parallel: 8
       fail-fast: false
       matrix:
-        repo: ${{ fromJson(needs.discover-repos.outputs.repo_list && needs.discover-repos.outputs.repo_list != '' && format('["{0}"]', join(needs.discover-repos.outputs.repo_list, '","')) || '[]') }}
-    outputs:
-      changes_made_${{ matrix.repo }}: ${{ steps.maintain.outputs.changes_made }}
-      pr_created_${{ matrix.repo }}: ${{ steps.maintain.outputs.pr_created }}
+        repo: ${{ fromJson(needs.discover-repos.outputs.repo_list || '[]') }}
     steps:
       - name: Install prerequisites
         run: |
@@ -219,7 +216,7 @@ jobs:
       - name: Clone and Maintain Repository
         id: maintain
         env:
-          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
+          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
           REPO_NAME: ${{ matrix.repo }}
         run: |
           #!/bin/bash
@@ -507,6 +504,7 @@ jobs:
     steps:
       - name: Generate Summary Report
         run: |
+          mode_label=$([ "$CREATE_PR" = "true" ] && echo "PR Creation" || echo "Direct Commit")
           cat << EOF >> $GITHUB_STEP_SUMMARY
           # 🔧 Org Self-Heal - Maintenance Report
           
@@ -517,7 +515,7 @@ jobs:
           | Organization | $ORG_NAME |
           | Repositories Processed | ${{ needs.discover-repos.outputs.repo_count }} |
           | Execution Time | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |
-          | Mode | ${{ env.CREATE_PR == 'true' && 'PR Creation' || 'Direct Commit' }} |
+          | Mode | $mode_label |
           
           ## Maintenance Tasks Performed
           
