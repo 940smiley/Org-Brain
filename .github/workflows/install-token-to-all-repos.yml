@@ -151,12 +151,16 @@ jobs:
           echo "Skip Existing: $SKIP_EXISTING"
           echo ""
           
-          repos="${{ steps.enumerate.outputs.repos }}"
+          repos_file="$OUTPUT_DIR/repos.json"
+          if [ ! -f "$repos_file" ]; then
+            echo "ERROR: Repository list file not found: $repos_file"
+            exit 1
+          fi
           
           success_count=0
           failure_count=0
           skip_count=0
-          total_count=$(echo "$repos" | jq 'length')
+          total_count=$(jq 'length' "$repos_file")
           
           echo "Total repositories to process: $total_count"
           echo ""
@@ -164,7 +168,7 @@ jobs:
           > $OUTPUT_DIR/results.jsonl
           
           # Process each repository
-          echo "$repos" | jq -c '.[]' | while read -r repo_info; do
+          jq -c '.[]' "$repos_file" | while read -r repo_info; do
             repo_name=$(echo "$repo_info" | jq -r '.name')
             is_private=$(echo "$repo_info" | jq -r '.private')
             
