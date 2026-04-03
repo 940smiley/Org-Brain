@@ -80,7 +80,7 @@ jobs:
       repo_count: ${{ steps.discover.outputs.repo_count }}
     steps:
       - name: Checkout Org Brain
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install prerequisites
         run: |
@@ -126,7 +126,7 @@ jobs:
         agent: [dependency, quality, security, documentation, release]
     steps:
       - name: Checkout Org Brain
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Initialize ${{ matrix.agent }} Agent
         if: ${{ env.AGENT_TYPE == matrix.agent || env.AGENT_TYPE == 'all' }}

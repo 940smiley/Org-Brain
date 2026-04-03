@@ -67,7 +67,7 @@ jobs:
       repair_count: ${{ steps.analyze.outputs.repair_count }}
     steps:
       - name: Checkout Org Brain
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install prerequisites
         run: |
@@ -120,7 +120,7 @@ jobs:
       fixes_applied: ${{ steps.repair.outputs.fixes_applied }}
     steps:
       - name: Checkout target repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ github.repository_owner }}/${{ matrix.repo }}
           token: ${{ env.GH_TOKEN }}

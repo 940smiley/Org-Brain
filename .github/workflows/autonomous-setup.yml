@@ -82,7 +82,7 @@ jobs:
       target_count: ${{ steps.discover.outputs.target_count }}
     steps:
       - name: Checkout Org Brain
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install prerequisites
         run: |
@@ -131,7 +131,7 @@ jobs:
         repo: ${{ fromJson(format('["{0}"]', join(needs.discover-targets.outputs.target_list, '","'))) }}
     steps:
       - name: Checkout target repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ github.repository_owner }}/${{ matrix.repo }}
           token: ${{ env.GH_TOKEN }}
@@ -216,7 +216,7 @@ jobs:
         repo: ${{ fromJson(format('["{0}"]', join(needs.discover-targets.outputs.target_list, '","'))) }}
     steps:
       - name: Checkout target repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ github.repository_owner }}/${{ matrix.repo }}
           token: ${{ env.GH_TOKEN }}

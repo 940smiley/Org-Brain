@@ -81,7 +81,7 @@ jobs:
       total_count: ${{ steps.classify-prs.outputs.total_count }}
     steps:
       - name: Checkout Org Brain
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Find all Dependabot PRs
         id: find-prs

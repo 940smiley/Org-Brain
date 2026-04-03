@@ -117,7 +117,7 @@ jobs:
       repo_count: ${{ steps.get-repos.outputs.repo_count }}
     steps:
       - name: Checkout Org Brain
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Get repositories to process
         id: get-repos
@@ -178,7 +178,7 @@ jobs:
           gh --version
 
       - name: Checkout Org Brain
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

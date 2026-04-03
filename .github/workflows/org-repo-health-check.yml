@@ -81,7 +81,7 @@ jobs:
       repo_details: ${{ steps.get-repos.outputs.repo_details }}
     steps:
       - name: Checkout Org Brain
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Get all organization repositories
         id: get-repos
@@ -491,7 +491,7 @@ jobs:
           cat /tmp/health_report_final.md >> $GITHUB_STEP_SUMMARY
 
       - name: Save Report as Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: health-report
           path: /tmp/health_report_final.md

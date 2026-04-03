@@ -60,7 +60,7 @@ jobs:
       conflict_details: ${{ steps.detect-conflict.outputs.conflict_details }}
     steps:
       - name: Checkout Org Brain
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install prerequisites
         run: |
@@ -170,7 +170,7 @@ jobs:
       conflict_prs: ${{ steps.scan.outputs.conflict_prs }}
     steps:
       - name: Checkout Org Brain
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install prerequisites
         run: |

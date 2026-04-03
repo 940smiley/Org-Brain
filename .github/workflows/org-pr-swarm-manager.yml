@@ -59,7 +59,7 @@ jobs:
       repo_count: ${{ steps.get-repos.outputs.repo_count }}
     steps:
       - name: Checkout Org Brain
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install prerequisites
         run: |
@@ -115,7 +115,7 @@ jobs:
 
     steps:
       - name: Checkout Org Brain
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install prerequisites
         run: |

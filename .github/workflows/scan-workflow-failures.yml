@@ -78,7 +78,7 @@ jobs:
       mode: ${{ steps.build-list.outputs.mode }}
     steps:
       - name: Checkout Org Brain
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install prerequisites
         run: |
@@ -145,7 +145,7 @@ jobs:
       failure_count: "${{ steps.scan.outputs.failure_count }}"
     steps:
       - name: Checkout Org Brain
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install prerequisites
         run: |
@@ -234,7 +234,7 @@ jobs:
           echo "failure_count=$failure_count" >> $GITHUB_OUTPUT
 
       - name: Upload scan result as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: scan-result-${{ matrix.repo }}
           path: scan_result.json
@@ -253,7 +253,7 @@ jobs:
       repos_with_failures: "${{ steps.aggregate.outputs.repos_with_failures }}"
     steps:
       - name: Checkout Org Brain
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install prerequisites
         run: |
@@ -387,7 +387,7 @@ jobs:
             echo "| matrix.repo without matrix | Add strategy.matrix block |"
             echo "| /orgs/ API for user account | Change to /users/ endpoint |"
             echo "| Missing token | Add GH_TOKEN environment variable |"
-            echo "| Missing checkout | Add uses: actions/checkout@v4 |"
+            echo "| Missing checkout | Add uses: actions/checkout@v6 |"
             echo "| Missing jq/gh | Add apt-get install step |"
             echo "| Missing permissions | Add permissions block |"
             echo ""
@@ -410,7 +410,7 @@ jobs:
           fi
 
       - name: Upload reports as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: workflow-failures-report
           path: ${{ env.OUTPUT_DIR }}/

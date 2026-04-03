@@ -78,7 +78,7 @@ jobs:
 
     steps:
       - name: Checkout Org Brain
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Detect repository languages
         id: detect
@@ -128,7 +128,7 @@ jobs:
 
     steps:
       - name: Checkout Org Brain
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Generate JavaScript Quality Workflows
         if: ${{ needs.detect-repos.outputs.javascript_repos != '[]' }}
@@ -159,7 +159,7 @@ jobs:
 
     steps:
       - name: Checkout Org Brain
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Generate Security Scanning Workflows
         run: |
@@ -182,7 +182,7 @@ jobs:
 
     steps:
       - name: Checkout Org Brain
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Generate Test Workflows
         run: |

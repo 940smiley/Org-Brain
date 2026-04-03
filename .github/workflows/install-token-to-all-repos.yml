@@ -52,7 +52,7 @@ jobs:
       total_count: ${{ steps.install.outputs.total_count }}
     steps:
       - name: Checkout Org-Brain
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install prerequisites
         run: |
@@ -315,7 +315,7 @@ jobs:
 
       - name: Upload results as artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: token-install-results
           path: ${{ env.OUTPUT_DIR }}/

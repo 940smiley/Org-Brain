@@ -232,7 +232,7 @@ jobs:
           echo "✅ Analysis report saved to data/analysis/${REPO}.json"
 
       - name: Upload analysis report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: analysis-report
           path: data/analysis/${{ github.event.inputs.repo }}.json
