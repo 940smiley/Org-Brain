@@ -35,7 +35,7 @@ permissions:
   actions: write
 
 env:
-  OWNER: "940smiley"
+  OWNER: ${{ inputs.owner || '940smiley' }}
   SECRET_NAME: "ORG_AUTOMATION_TOKEN"
   OUTPUT_DIR: "data/token-install"
   # CRITICAL: Pass token to ALL steps via environment variable
@@ -213,7 +213,7 @@ jobs:
             
             # Encrypt the token using Python/PyNaCl (libsodium)
             echo "  Encrypting token..." | tee -a "$log_file"
-            encrypted_value=$(PUBLIC_KEY="$public_key" python3 <<'PYEOF'
+            encrypted_value=$(PUBLIC_KEY="$public_key" python3 -c '
             import base64
             import os
             import sys
@@ -232,8 +232,7 @@ jobs:
                 sys.exit(1)
 
             print(encrypt(os.environ["PUBLIC_KEY"], token))
-            PYEOF
-            )
+            ')
             
             if [ -z "$encrypted_value" ] || echo "$encrypted_value" | grep -q "ERROR"; then
               echo "  Encryption failed!" | tee -a "$log_file"
