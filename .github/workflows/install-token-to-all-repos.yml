@@ -213,26 +213,7 @@ jobs:
             
             # Encrypt the token using Python/PyNaCl (libsodium)
             echo "  Encrypting token..." | tee -a "$log_file"
-            encrypted_value=$(PUBLIC_KEY="$public_key" python3 -c '
-            import base64
-            import os
-            import sys
-            from nacl import public
-
-            def encrypt(public_key: str, secret_value: str) -> str:
-                public_key_bytes = base64.b64decode(public_key)
-                public_key_obj = public.PublicKey(public_key_bytes)
-                sealed_box = public.SealedBox(public_key_obj)
-                encrypted = sealed_box.encrypt(secret_value.encode("utf-8"))
-                return base64.b64encode(encrypted).decode("utf-8")
-
-            token = os.environ.get("ORG_AUTOMATION_TOKEN", "")
-            if not token:
-                print("ERROR: No token in environment", file=sys.stderr)
-                sys.exit(1)
-
-            print(encrypt(os.environ["PUBLIC_KEY"], token))
-            ')
+            encrypted_value=$(PUBLIC_KEY="$public_key" python3 -c "import base64, os; from nacl import public; token=os.environ.get('ORG_AUTOMATION_TOKEN', ''); assert token, 'No token in environment'; public_key_obj=public.PublicKey(base64.b64decode(os.environ['PUBLIC_KEY'])); sealed_box=public.SealedBox(public_key_obj); print(base64.b64encode(sealed_box.encrypt(token.encode('utf-8'))).decode('utf-8'))")
             
             if [ -z "$encrypted_value" ] || echo "$encrypted_value" | grep -q "ERROR"; then
               echo "  Encryption failed!" | tee -a "$log_file"
