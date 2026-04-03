@@ -86,7 +86,7 @@ jobs:
       - name: Get all organization repositories
         id: get-repos
         env:
-          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
+          GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "🔍 Discovering repositories in: $ORG_NAME"
           sudo apt-get update -qq && sudo apt-get install -y jq > /dev/null 2>&1
@@ -223,7 +223,7 @@ jobs:
           fi
           
           # Check for outdated dependencies (via Dependabot PRs)
-          outdated_deps=$(gh pr list --repo "$ORG_NAME/$REPO_NAME" --state open --author "dependabot[bot]" --limit 100 2>/dev/null | jq 'length' || echo "0")
+          outdated_deps=$(gh pr list --repo "$ORG_NAME/$REPO_NAME" --state open --author "dependabot[bot]" --limit 100 --json number 2>/dev/null | jq 'length' || echo "0")
           
           # Get last push date
           last_push=$(gh api "/repos/$ORG_NAME/$REPO_NAME" --jq '.pushed_at' 2>/dev/null || echo "")

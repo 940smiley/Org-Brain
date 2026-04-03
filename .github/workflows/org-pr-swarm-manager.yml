@@ -55,6 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       repo_list: ${{ steps.get-repos.outputs.repo_list }}
+      repo_json: ${{ steps.get-repos.outputs.repo_json }}
       repo_count: ${{ steps.get-repos.outputs.repo_count }}
     steps:
       - name: Checkout Org Brain
@@ -135,11 +136,6 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "stable"
-
-      - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          components: rustfmt
 
       - name: Process Pull Requests
         id: process-prs

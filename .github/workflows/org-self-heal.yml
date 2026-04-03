@@ -195,11 +195,6 @@ jobs:
         with:
           go-version: "stable"
 
-      - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          components: rustfmt
-
       - name: Install maintenance tools
         run: |
           # Python tools
@@ -224,6 +219,7 @@ jobs:
           
           echo "🔧 Running maintenance on: $REPO_NAME"
           repo_url="https://github.com/$ORG_NAME/$REPO_NAME.git"
+          default_branch=$(gh api "/repos/$ORG_NAME/$REPO_NAME" --jq '.default_branch' 2>/dev/null || echo "main")
 
           # Check if repo has no-autofix label on any open PRs or as repo topic
           repo_topics=$(gh api "/repos/$ORG_NAME/$REPO_NAME" --jq '.topics[]' 2>/dev/null | tr '\n' ',')
@@ -262,16 +258,18 @@ jobs:
             rm -f /tmp/bot_prs_$REPO_NAME.txt
           fi
 
-          # Clone the repository (main branch)
-          git clone --depth 1 "$repo_url" workdir
+          # Clone the repository default branch
+          git clone --depth 1 --branch "$default_branch" "$repo_url" workdir
           cd workdir
           
           # Configure git
           git config user.email "$COMMIT_EMAIL"
           git config user.name "$COMMIT_NAME"
           
-          # Create maintenance branch
-          git checkout -b "$BRANCH_NAME"
+          # Create maintenance branch only for PR mode.
+          if [ "$CREATE_PR" = "true" ]; then
+            git checkout -b "$BRANCH_NAME"
+          fi
           
           changes_made=false
           
@@ -460,7 +458,7 @@ jobs:
                     --title "$PR_TITLE" \
                     --body "$PR_BODY" \
                     --head "$BRANCH_NAME" \
-                    --base "main" \
+                    --base "$default_branch" \
                     --label "automated-pr" \
                     2>/dev/null || echo "")
                   
@@ -477,7 +475,7 @@ jobs:
               else
                 # Direct commit to main
                 echo "🚀 Pushing changes directly"
-                git push
+                git push origin "HEAD:$default_branch"
                 echo "changes_made=true" >> $GITHUB_OUTPUT
                 echo "pr_created=false" >> $GITHUB_OUTPUT
               fi
