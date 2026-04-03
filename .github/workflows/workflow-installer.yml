@@ -53,6 +53,7 @@ permissions:
 env:
   OWNER: "940smiley"
   ORG_BRAIN_REPO: "Org-Brain"
+  ORG_BRAIN_REF: "master"
   GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
 
 jobs:
@@ -120,9 +121,9 @@ jobs:
             echo "Installing $wf_file to $target_repo..."
 
             # Download workflow from Org Brain repo
-            workflow_url="https://raw.githubusercontent.com/$OWNER/$ORG_BRAIN_REPO/main/.github/workflows/$wf_file"
+            workflow_url="https://raw.githubusercontent.com/$OWNER/$ORG_BRAIN_REPO/$ORG_BRAIN_REF/.github/workflows/$wf_file"
 
-            if curl -sL "$workflow_url" -o ".github/workflows/$wf_file"; then
+            if curl -fsSL "$workflow_url" -o ".github/workflows/$wf_file"; then
               echo "✅ Downloaded $wf_file"
               workflows_installed+=("$wf_file")
             else
@@ -132,7 +133,7 @@ jobs:
           done
 
           # Output results
-          workflows_json=$(printf '%s\n' "${workflows_installed[@]}" | jq -R . | jq -s .)
+          workflows_json=$(printf '%s\n' "${workflows_installed[@]}" | jq -R . | jq -sc .)
           echo "workflows_installed=$workflows_json" >> $GITHUB_OUTPUT
           echo "success=$success" >> $GITHUB_OUTPUT
 

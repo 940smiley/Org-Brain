@@ -83,8 +83,8 @@ jobs:
             exit 0
           fi
 
-          # Filter out archived and output as JSON array
-          active_repos=$(echo "$repos_json" | jq '[.[] | select(.archived == false) | .name]')
+          # Keep JSON compact because $GITHUB_OUTPUT only supports single-line key=value entries.
+          active_repos=$(echo "$repos_json" | jq -c '[.[] | select(.archived == false) | .name]')
           repo_count=$(echo "$active_repos" | jq 'length')
 
           # Also output as comma-separated for compatibility

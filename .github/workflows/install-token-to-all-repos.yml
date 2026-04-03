@@ -209,27 +209,27 @@ jobs:
             
             # Encrypt the token using Python/PyNaCl (libsodium)
             echo "  Encrypting token..." | tee -a "$log_file"
-            encrypted_value=$(python3 << PYEOF
-import base64
-import sys
-import os
-from nacl import encoding, public
+            encrypted_value=$(PUBLIC_KEY="$public_key" python3 <<'PYEOF'
+            import base64
+            import os
+            import sys
+            from nacl import public
 
-def encrypt(public_key: str, secret_value: str) -> str:
-    public_key_bytes = base64.b64decode(public_key)
-    sealed_box = public.SealedBox(public_key_bytes)
-    encrypted = sealed_box.encrypt(secret_value.encode('utf-8'))
-    return base64.b64encode(encrypted).decode('utf-8')
+            def encrypt(public_key: str, secret_value: str) -> str:
+                public_key_bytes = base64.b64decode(public_key)
+                public_key_obj = public.PublicKey(public_key_bytes)
+                sealed_box = public.SealedBox(public_key_obj)
+                encrypted = sealed_box.encrypt(secret_value.encode("utf-8"))
+                return base64.b64encode(encrypted).decode("utf-8")
 
-# Read token from environment
-token = os.environ.get('ORG_AUTOMATION_TOKEN', '')
-if not token:
-    print("ERROR: No token in environment", file=sys.stderr)
-    sys.exit(1)
+            token = os.environ.get("ORG_AUTOMATION_TOKEN", "")
+            if not token:
+                print("ERROR: No token in environment", file=sys.stderr)
+                sys.exit(1)
 
-print(encrypt('$public_key', token))
-PYEOF
-)
+            print(encrypt(os.environ["PUBLIC_KEY"], token))
+            PYEOF
+            )
             
             if [ -z "$encrypted_value" ] || echo "$encrypted_value" | grep -q "ERROR"; then
               echo "  Encryption failed!" | tee -a "$log_file"
@@ -289,32 +289,32 @@ PYEOF
       - name: Generate summary report
         if: always()
         run: |
-          cat << EOF > $OUTPUT_DIR/summary.md
-# Token Installation Report
+          cat <<EOF > "$OUTPUT_DIR/summary.md"
+          # Token Installation Report
 
-**Generated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-**Owner:** ${{ github.event.inputs.owner || env.OWNER }}
-**Secret Name:** ${{ env.SECRET_NAME }}
+          **Generated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Owner:** ${{ github.event.inputs.owner || env.OWNER }}
+          **Secret Name:** ${{ env.SECRET_NAME }}
 
----
+          ---
 
-## Summary
+          ## Summary
 
-| Metric | Count |
-|--------|-------|
-| Total Repositories | ${{ steps.enumerate.outputs.count || 0 }} |
-| Successful | ${{ steps.install.outputs.success_count || 0 }} |
-| Failed | ${{ steps.install.outputs.failure_count || 0 }} |
-| Skipped | ${{ steps.install.outputs.skip_count || 0 }} |
+          | Metric | Count |
+          |--------|-------|
+          | Total Repositories | ${{ steps.enumerate.outputs.count || 0 }} |
+          | Successful | ${{ steps.install.outputs.success_count || 0 }} |
+          | Failed | ${{ steps.install.outputs.failure_count || 0 }} |
+          | Skipped | ${{ steps.install.outputs.skip_count || 0 }} |
 
----
+          ---
 
-## Detailed Results
+          ## Detailed Results
 
-\`\`\`json
-$(cat $OUTPUT_DIR/results.jsonl | jq -s '.' 2>/dev/null || echo "[]")
-\`\`\`
-EOF
+          \`\`\`json
+          $(cat "$OUTPUT_DIR/results.jsonl" | jq -s '.' 2>/dev/null || echo "[]")
+          \`\`\`
+          EOF
           cat $OUTPUT_DIR/summary.md
 
       - name: Commit results
@@ -342,20 +342,20 @@ EOF
       - name: Generate GitHub Summary
         if: always()
         run: |
-          cat << EOF >> $GITHUB_STEP_SUMMARY
-# Token Installation Complete
+          cat <<EOF >> "$GITHUB_STEP_SUMMARY"
+          # Token Installation Complete
 
-## Summary
+          ## Summary
 
-| Metric | Count |
-|--------|-------|
-| Total Repositories | ${{ steps.enumerate.outputs.count || 0 }} |
-| Successful | ${{ steps.install.outputs.success_count || 0 }} |
-| Failed | ${{ steps.install.outputs.failure_count || 0 }} |
-| Skipped | ${{ steps.install.outputs.skip_count || 0 }} |
+          | Metric | Count |
+          |--------|-------|
+          | Total Repositories | ${{ steps.enumerate.outputs.count || 0 }} |
+          | Successful | ${{ steps.install.outputs.success_count || 0 }} |
+          | Failed | ${{ steps.install.outputs.failure_count || 0 }} |
+          | Skipped | ${{ steps.install.outputs.skip_count || 0 }} |
 
-## Results
+          ## Results
 
-- **Detailed Report:** \`data/token-install/summary.md\`
-- **Artifact:** Download from workflow run
-EOF
+          - **Detailed Report:** \`data/token-install/summary.md\`
+          - **Artifact:** Download from workflow run
+          EOF

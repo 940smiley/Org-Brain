@@ -143,17 +143,20 @@ jobs:
             echo "ℹ️ Already labeled"
           fi
 
-          gh pr comment "$PR_NUMBER" --repo "$REPO" --body "⚠️ **Automation Conflict Detected**
+          gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$(cat <<'EOF'
+          ⚠️ **Automation Conflict Detected**
 
-Multiple automation bots detected modifying this PR within a short time window.
+          Multiple automation bots detected modifying this PR within a short time window.
 
-**Actions Taken:**
-- Added \`automation-conflict\` label
-- Added \`automation-lock\` label
+          **Actions Taken:**
+          - Added \`automation-conflict\` label
+          - Added \`automation-lock\` label
 
-**Next Steps:**
-- Review changes manually
-- Remove \`automation-lock\` when ready to re-enable automation"
+          **Next Steps:**
+          - Review changes manually
+          - Remove \`automation-lock\` when ready to re-enable automation
+          EOF
+          )"
 
   # ===========================================================================
   # SCAN ALL ACTIVE PRS
@@ -271,15 +274,18 @@ Multiple automation bots detected modifying this PR within a short time window.
             gh pr edit "$pr_number" --repo "$repo" --add-label "automation-conflict,automation-lock"
           fi
 
-          gh pr comment "$pr_number" --repo "$repo" --body "⚠️ **Automation Conflict Detected**
+          gh pr comment "$pr_number" --repo "$repo" --body "$(cat <<EOF
+          ⚠️ **Automation Conflict Detected**
 
-Multiple automation bots detected within a $TIME_WINDOW_MINUTES minute window.
+          Multiple automation bots detected within a $TIME_WINDOW_MINUTES minute window.
 
-**Actions:**
-- Added \`automation-conflict\` label
-- Added \`automation-lock\` label
+          **Actions:**
+          - Added \`automation-conflict\` label
+          - Added \`automation-lock\` label
 
-Remove \`automation-lock\` to re-enable automation."
+          Remove \`automation-lock\` to re-enable automation.
+          EOF
+          )"
 
   # ===========================================================================
   # GENERATE REPORT
@@ -295,7 +301,7 @@ Remove \`automation-lock\` to re-enable automation."
           conflicts="${{ needs.scan-all-prs.outputs.conflicts_found || 0 }}"
           status=$([ "$conflicts" -gt 0 ] && echo "⚠️ Conflicts detected" || echo "✅ No conflicts")
 
-          cat << EOF >> $GITHUB_STEP_SUMMARY
+          cat <<EOF >> "$GITHUB_STEP_SUMMARY"
           # ⚠️ Automation Conflict Detection Report
 
           | Metric | Value |

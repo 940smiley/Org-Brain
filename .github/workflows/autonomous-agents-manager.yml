@@ -103,7 +103,8 @@ jobs:
             exit 0
           fi
 
-          repo_list=$(echo "$repos_json" | jq '[.[] | .name]')
+          # Keep JSON compact because $GITHUB_OUTPUT only supports single-line key=value entries.
+          repo_list=$(echo "$repos_json" | jq -c '[.[] | .name]')
           repo_count=$(echo "$repo_list" | jq 'length')
 
           echo "📦 Found $repo_count repositories"
