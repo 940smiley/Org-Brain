@@ -265,6 +265,7 @@ jobs:
           # Configure git
           git config user.email "$COMMIT_EMAIL"
           git config user.name "$COMMIT_NAME"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/$ORG_NAME/$REPO_NAME.git"
           
           # Create maintenance branch only for PR mode.
           if [ "$CREATE_PR" = "true" ]; then

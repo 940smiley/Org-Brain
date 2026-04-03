@@ -278,7 +278,7 @@ jobs:
           fi
           
           # Output metrics as JSON
-          metrics=$(jq -n \
+          metrics=$(jq -cn \
             --arg repo "$REPO_NAME" \
             --argjson workflow_failures "$workflow_failures" \
             --argjson workflow_runs "$workflow_runs" \
