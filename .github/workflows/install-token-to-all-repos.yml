@@ -227,9 +227,7 @@ jobs:
             
             # Upload encrypted secret
             echo "  Uploading secret..." | tee -a "$log_file"
-            upload_response=$(gh api -X PUT "/repos/$OWNER/$repo_name/actions/secrets/$SECRET_NAME" -f encrypted_value="$encrypted_value" -f key_id="$key_id" 2>&1) || true
-            
-            if [ -z "$upload_response" ]; then
+            if upload_response=$(gh api -X PUT "/repos/$OWNER/$repo_name/actions/secrets/$SECRET_NAME" -f encrypted_value="$encrypted_value" -f key_id="$key_id" 2>&1); then
               echo "  Successfully installed secret" | tee -a "$log_file"
               success_count=$((success_count + 1))
               echo "{\"repo\":\"$repo_name\",\"status\":\"success\"}" >> $OUTPUT_DIR/results.jsonl
@@ -246,9 +244,9 @@ jobs:
           
           # Count results from file
           if [ -f $OUTPUT_DIR/results.jsonl ]; then
-            success_count=$(grep -c '"status":"success"' $OUTPUT_DIR/results.jsonl || echo "0")
-            failure_count=$(grep -c '"status":"failed"' $OUTPUT_DIR/results.jsonl || echo "0")
-            skip_count=$(grep -c '"status":"skipped"' $OUTPUT_DIR/results.jsonl || echo "0")
+            success_count=$(grep -c '"status":"success"' $OUTPUT_DIR/results.jsonl || true)
+            failure_count=$(grep -c '"status":"failed"' $OUTPUT_DIR/results.jsonl || true)
+            skip_count=$(grep -c '"status":"skipped"' $OUTPUT_DIR/results.jsonl || true)
           fi
           
           echo ""
