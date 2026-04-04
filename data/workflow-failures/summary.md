@@ -1,6 +1,6 @@
 # Workflow Failures Report
 
-**Generated:** 2026-04-03 05:46:01 UTC
+**Generated:** 2026-04-04 05:25:02 UTC
 **Scan Mode:** all
 **Repositories Scanned:** 0
 
@@ -29,7 +29,7 @@
 | matrix.repo without matrix | Add strategy.matrix block |
 | /orgs/ API for user account | Change to /users/ endpoint |
 | Missing token | Add GH_TOKEN environment variable |
-| Missing checkout | Add uses: actions/checkout@v4 |
+| Missing checkout | Add uses: actions/checkout@v6 |
 | Missing jq/gh | Add apt-get install step |
 | Missing permissions | Add permissions block |
 
