@@ -61,7 +61,7 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
@@ -74,19 +74,19 @@ jobs:
       - name: Prepare Dashboard Files
         run: |
           echo "📁 Preparing dashboard files for deployment"
-          
+
           # Create deployment directory
           mkdir -p /tmp/pages-deploy
-          
+
           # Copy docs index (main entry point) to root
           if [ -f "docs/index.html" ]; then
             cp docs/index.html /tmp/pages-deploy/index.html
           fi
-          
+
           # Copy dashboard files to dashboard subdirectory
           mkdir -p /tmp/pages-deploy/dashboard
           cp -r dashboard/* /tmp/pages-deploy/dashboard/
-          
+
           # Copy generated data to root for dashboard access
           mkdir -p /tmp/pages-deploy/data
           if [ -f "data/repos.json" ]; then
@@ -96,7 +96,7 @@ jobs:
             echo '[]' > /tmp/pages-deploy/data/repos.json
             echo "⚠️  No repos.json found, created empty data file"
           fi
-          
+
           # List deployment contents
           echo "📦 Deployment contents:"
           ls -la /tmp/pages-deploy/
@@ -125,3 +125,4 @@ jobs:
           echo "| Status | ✅ Success |" >> $GITHUB_STEP_SUMMARY
           echo "| URL | ${{ steps.deployment.outputs.page_url }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Timestamp | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |" >> $GITHUB_STEP_SUMMARY
+

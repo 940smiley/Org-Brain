@@ -2,7 +2,7 @@
 
 ## Pre-Commit Verification ✓
 
-### API Endpoint Fixes Verified:
+### API Endpoint Fixes Verified
 
 - [x] generate-repo-data.yml: `/users/` endpoint (line 104)
 - [x] org-pr-swarm-manager.yml: `/users/` endpoint (line 96)
@@ -11,14 +11,14 @@
 - [x] org-repo-health-check.yml: `/users/` endpoint (line 98)
 - [x] org-self-heal.yml: Already uses `/users/` (line 143)
 
-### Matrix Fixes Verified:
+### Matrix Fixes Verified
 
 - [x] org-repo-health-check.yml: Proper JSON array output (`jq -c '[.[] | .name]'`)
 - [x] org-repo-health-check.yml: Clean matrix definition (`fromJson(needs.discover-repos.outputs.repo_list)`)
 - [x] pages-auto-setup.yml: Correct `matrix.include` with array of objects
 - [x] workflow-generator.yml: Proper JSON array outputs
 
-### Prerequisites Added:
+### Prerequisites Added
 
 - [x] generate-repo-data.yml: `apt-get install jq`
 - [x] org-pr-swarm-manager.yml: `apt-get install jq`
@@ -26,7 +26,7 @@
 - [x] workflow-generator.yml: `apt-get install jq`
 - [x] org-repo-health-check.yml: Prerequisites step included
 
-### Duplicates Deleted:
+### Duplicates Deleted
 
 - [x] pages-setup.yml deleted (keep pages-auto-setup.yml)
 - [x] pages-setup-fixed.yml deleted (obsolete)
@@ -34,7 +34,7 @@
 - [x] workflow-generator-fixed.yml deleted (obsolete)
 - ⚠️ workflow-gen.yml needs manual deletion (terminal issue)
 
-### Error Handling Verified:
+### Error Handling Verified
 
 - [x] `gh auth status` diagnostic added
 - [x] Error suppression with `2>/dev/null` and `|| echo "[]"`
@@ -116,33 +116,38 @@ gh workflow run workflow-generator.yml --repo 940smiley/Org-Brain \
 
 ## Troubleshooting Guide
 
-### If "HTTP 404" errors still occur:
+### If "HTTP 404" errors still occur
 
 1. Verify endpoint in workflow: Should be `/users/940smiley/repos`
 2. Check GH_TOKEN has correct permissions:
+
    ```bash
    gh auth status
    gh auth refresh -h github.com -s repo,read:org,workflow
    ```
+
 3. Manually test endpoint:
+
    ```bash
    gh api "/users/940smiley/repos?per_page=5" --jq '.[] | .name'
    ```
 
-### If matrix jobs don't spawn:
+### If matrix jobs don't spawn
 
 1. Check output format is JSON array: `[repo1, repo2, repo3]` not `repo1,repo2,repo3`
 2. Verify `fromJson()` usage in matrix definition
 3. Check discover job outputs:
+
    ```bash
    gh run list --workflow=org-repo-health-check.yml --limit=1 --json name,conclusion -t '{{range .}}{{.name}} {{.conclusion}}{{"\n"}}{{end}}'
    ```
 
-### If jq command fails:
+### If jq command fails
 
 1. Verify prerequisites are installed in the workflow step
 2. Check jq version compatibility
 3. Add explicit jq installation before use:
+
    ```yaml
    - name: Install jq
      run: sudo apt-get install -y jq

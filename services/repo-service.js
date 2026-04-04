@@ -2,7 +2,7 @@
  * =============================================================================
  * REPOSITORY SERVICE
  * =============================================================================
- * 
+ *
  * Handles repository discovery, metadata collection, and configuration
  * management across all user-owned repositories.
  */
@@ -81,7 +81,7 @@ class RepoService {
      */
     async getRepoConfig(owner, repo) {
         const configFile = path.join(this.configDir, `${owner}-${repo}.json`);
-        
+
         try {
             const data = await fs.readFile(configFile, 'utf8');
             return JSON.parse(data);
@@ -153,7 +153,7 @@ class RepoService {
      */
     async initializeRepo(owner, repo, features = []) {
         const config = await this.getRepoConfig(owner, repo);
-        
+
         for (const feature of features) {
             if (config.features[feature] !== undefined) {
                 config.features[feature] = true;
@@ -197,3 +197,4 @@ class RepoService {
 }
 
 module.exports = RepoService;
+

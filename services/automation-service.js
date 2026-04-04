@@ -2,7 +2,7 @@
  * =============================================================================
  * AUTOMATION SERVICE
  * =============================================================================
- * 
+ *
  * Manages autonomous automation features for repositories.
  * Handles enabling, configuring, and monitoring autonomous workflows.
  */
@@ -248,7 +248,7 @@ class AutomationService {
         try {
             const data = await fs.readFile(configFile, 'utf8');
             const config = JSON.parse(data);
-            
+
             if (config.features[feature]) {
                 config.features[feature] = {
                     ...config.features[feature],
@@ -276,3 +276,4 @@ class AutomationService {
 }
 
 module.exports = AutomationService;
+

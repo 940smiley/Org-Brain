@@ -76,29 +76,29 @@ jobs:
         run: |
           #!/bin/bash
           set -e
-          
+
           cd repo
-          
+
           echo "📊 Analyzing repository: $OWNER/$REPO"
-          
+
           # Initialize scores
           code_quality=100
           documentation=100
           testing=100
           security=100
           maintenance=100
-          
+
           # Count files by type
           total_files=$(find . -type f | wc -l)
           code_files=$(find . -type f \( -name "*.js" -o -name "*.ts" -o -name "*.py" -o -name "*.go" -o -name "*.rs" -o -name "*.java" -o -name "*.cpp" -o -name "*.c" -o -name "*.h" \) | wc -l)
           doc_files=$(find . -type f \( -name "*.md" -o -name "*.rst" -o -name "*.txt" \) | wc -l)
           test_files=$(find . -type f \( -name "*test*" -o -name "*spec*" \) | wc -l)
-          
+
           echo "📁 Total files: $total_files"
           echo "📝 Code files: $code_files"
           echo "📚 Doc files: $doc_files"
           echo "🧪 Test files: $test_files"
-          
+
           # Code quality checks
           if [ "$DEEP_ANALYSIS" = "true" ]; then
             # Deep analysis: check for common issues
@@ -107,7 +107,7 @@ jobs:
               code_quality=$((code_quality - large_files * 5))
               echo "⚠️  Found $large_files large files (>1MB)"
             fi
-            
+
             # Check for TODO/FIXME comments
             todo_count=$(grep -r "TODO\|FIXME\|XXX" --include="*.js" --include="*.ts" --include="*.py" --include="*.go" --include="*.rs" 2>/dev/null | wc -l || echo "0")
             if [ "$todo_count" -gt 10 ]; then
@@ -115,7 +115,7 @@ jobs:
               echo "⚠️  Found $todo_count TODO/FIXME comments"
             fi
           fi
-          
+
           # Documentation score
           if [ "$doc_files" -eq 0 ]; then
             documentation=50
@@ -129,7 +129,7 @@ jobs:
             documentation=$((documentation - 20))
             echo "⚠️  No LICENSE file found"
           fi
-          
+
           # Testing score
           if [ "$test_files" -eq 0 ] && [ "$code_files" -gt 0 ]; then
             testing=40
@@ -141,7 +141,7 @@ jobs:
           elif [ "$test_ratio" -lt 30 ]; then
             testing=$((testing - 10))
           fi
-          
+
           # Security checks
           # Check for exposed secrets patterns (basic check)
           if grep -r "password\s*=\s*['\"]" --include="*.js" --include="*.ts" --include="*.py" --include="*.env" 2>/dev/null | grep -v node_modules | head -1 | grep -q .; then
@@ -152,20 +152,20 @@ jobs:
             security=$((security - 30))
             echo "⚠️  Potential hardcoded API key found"
           fi
-          
+
           # Maintenance checks
           # Check for .gitignore
           if [ ! -f ".gitignore" ]; then
             maintenance=$((maintenance - 20))
             echo "⚠️  No .gitignore found"
           fi
-          
+
           # Check for package manager files
           if [ -f "package.json" ] && [ ! -f "package-lock.json" ] && [ ! -f "yarn.lock" ] && [ ! -f "pnpm-lock.yaml" ]; then
             maintenance=$((maintenance - 10))
             echo "⚠️  No lockfile for npm dependencies"
           fi
-          
+
           # Ensure scores are within bounds
           for score in code_quality documentation testing security maintenance; do
             val=${!score}
@@ -175,10 +175,10 @@ jobs:
               eval "$score=100"
             fi
           done
-          
+
           # Calculate overall health score
           health_score=$(( (code_quality + documentation + testing + security + maintenance) / 5 ))
-          
+
           # Determine health status
           if [ "$health_score" -ge 80 ]; then
             health_status="healthy"
@@ -189,7 +189,7 @@ jobs:
           else
             health_status="critical"
           fi
-          
+
           echo ""
           echo "📊 Analysis Results:"
           echo "   Code Quality: $code_quality"
@@ -198,11 +198,11 @@ jobs:
           echo "   Security: $security"
           echo "   Maintenance: $maintenance"
           echo "   Overall Health: $health_score ($health_status)"
-          
+
           # Output for GitHub Actions
           echo "health_score=$health_score" >> $GITHUB_OUTPUT
           echo "health_status=$health_status" >> $GITHUB_OUTPUT
-          
+
           # Create JSON report
           mkdir -p ../data/analysis
           cat > ../data/analysis/${REPO}.json << EOF
@@ -228,7 +228,7 @@ jobs:
             "deep_analysis": $DEEP_ANALYSIS
           }
           EOF
-          
+
           echo "✅ Analysis report saved to data/analysis/${REPO}.json"
 
       - name: Upload analysis report
@@ -243,22 +243,22 @@ jobs:
           # Configure git
           git config user.email "org-brain-bot@github.com"
           git config user.name "Org Brain Bot"
-          
+
           # Check if data directory exists in repo
           if [ ! -d "data/analysis" ]; then
             mkdir -p data/analysis
           fi
-          
+
           # Copy the analysis file
           cp repo/data/analysis/${REPO}.json data/analysis/ 2>/dev/null || true
-          
+
           # Check for changes
           if git diff --quiet data/analysis/${REPO}.json 2>/dev/null; then
             echo "ℹ️  No changes to commit"
           else
             git add data/analysis/${REPO}.json
             git commit -m "chore: add analysis report for $REPO
-            
+
             Health Score: ${{ steps.analyze.outputs.health_score }}
             Status: ${{ steps.analyze.outputs.health_status }}"
             git push
@@ -269,13 +269,13 @@ jobs:
         run: |
           cat << EOF >> $GITHUB_STEP_SUMMARY
           # 🔍 Code Analysis Report: $OWNER/$REPO
-          
+
           ## Health Score: ${{ steps.analyze.outputs.health_score }}/100
-          
+
           Status: **${{ steps.analyze.outputs.health_status }}**
-          
+
           ## Metrics
-          
+
           | Metric | Score |
           |--------|-------|
           | Code Quality | ${{ steps.analyze.outputs.health_score }} |
@@ -283,10 +283,11 @@ jobs:
           | Testing | - |
           | Security | - |
           | Maintenance | - |
-          
+
           ## Next Steps
-          
+
           - View full report in \`data/analysis/${REPO}.json\`
           - Address any identified issues
           - Re-run analysis after fixes
           EOF
+

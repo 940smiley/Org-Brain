@@ -2,7 +2,7 @@
  * =============================================================================
  * WORKFLOW SERVICE
  * =============================================================================
- * 
+ *
  * Generates and manages GitHub Actions workflows for repositories.
  * Supports both autonomous and manual deployment modes.
  */
@@ -127,11 +127,11 @@ class WorkflowService {
      */
     customizeWorkflow(template, owner, repo, config, autonomous) {
         const customized = { ...template };
-        
+
         if (config.schedule) {
             customized.on.schedule = config.schedule;
         }
-        
+
         if (config.triggers) {
             customized.on = { ...customized.on, ...config.triggers };
         }
@@ -319,3 +319,4 @@ class WorkflowService {
 }
 
 module.exports = WorkflowService;
+

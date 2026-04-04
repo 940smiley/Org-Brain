@@ -29,6 +29,7 @@ Org Brain is a comprehensive automation system for managing GitHub organizations
 ### 🔒 Bot Conflict Prevention
 
 Automatically detects and prevents conflicts between:
+
 - `dependabot[bot]`
 - `amazon-q[bot]`
 - `github-actions[bot]`
@@ -46,6 +47,7 @@ Automatically detects and prevents conflicts between:
 ### Installation
 
 1. **Fork or clone this repository** to your organization:
+
    ```bash
    git clone https://github.com/940smiley/Org-Brain.git
    cd Org-Brain
@@ -174,6 +176,7 @@ Repositories are scored 0-100 based on:
 | Failing workflows | -20 |
 
 **Status Levels:**
+
 - 🟢 **Healthy**: 80-100
 - 🟡 **Warning**: 60-79
 - 🟠 **Unhealthy**: 40-59
@@ -189,6 +192,7 @@ Repositories are scored 0-100 based on:
 ## 📝 Bot Skip Rules
 
 All workflows skip PRs where the last commit is from:
+
 - `dependabot[bot]`
 - `amazon-q[bot]`
 - `github-actions[bot]`
@@ -200,16 +204,19 @@ This prevents automation conflicts and loops.
 ## 🛠️ Troubleshooting
 
 ### Workflows not running?
+
 - Check Actions are enabled in Settings
 - Verify `ORG_AUTOMATION_TOKEN` secret exists
 - Check workflow run logs for errors
 
 ### Dashboard not deploying?
+
 - Ensure Pages source is set to "GitHub Actions"
 - Check the Deploy Pages workflow logs
 - Verify `data/repos.json` exists
 
 ### Permission errors?
+
 - PAT needs `repo`, `workflow`, `read:org` scopes
 - For private repos, ensure token has full repo access
 

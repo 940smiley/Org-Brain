@@ -7,6 +7,7 @@ Org Brain 2.0 transforms from a simple dashboard into a comprehensive **autonomo
 ### Core Capabilities
 
 #### 1. **🔗 GitHub Pages Management**
+
 - **Auto-Setup**: Automatically enable Pages on matching repositories
 - **Templates**: Deploy pre-built documentation, blog, portfolio, and project templates
 - **Customization**: AI-powered suggestions for page design and content
@@ -14,6 +15,7 @@ Org Brain 2.0 transforms from a simple dashboard into a comprehensive **autonomo
 - **Manual & Autonomous Routes**: Both manual setup and scheduled auto-setup
 
 #### 2. **🤖 Autonomous Agents**
+
 Five types of intelligent agents that manage your repositories autonomously:
 
 - **DependencyManager**: Manages library updates with smart batching
@@ -23,12 +25,14 @@ Five types of intelligent agents that manage your repositories autonomously:
 - **ReleaseManager**: Automates versioning and release processes
 
 Each agent supports three modes:
+
 - **Manual**: User approval required for all actions
 - **Low**: Suggests actions, requires approval
 - **Medium**: Auto-executes safe actions, requires approval for risky ones
 - **High**: Full autonomy with safety constraints
 
 #### 3. **⚙️ Workflow Generator**
+
 - **Auto-Detection**: Detects repository language and type
 - **Templates**: Pre-built workflows for code quality, security, tests, deployment
 - **Customization**: AI-powered workflow customization suggestions
@@ -36,13 +40,16 @@ Each agent supports three modes:
 - **Version Management**: Keep workflows up-to-date across organization
 
 #### 4. **🎯 Configuration Management**
+
 - **Centralized Config**: Organization-wide settings in `config/repos-config.json`
 - **Per-Repository Overrides**: Customize settings for individual repos
 - **Feature Toggles**: Enable/disable features per repo
 - **Template Library**: Reusable configuration templates
 
 #### 5. **🤖 AI Integration Ready**
+
 Extensible architecture for Claude AI integration:
+
 - Documentation suggestions based on code analysis
 - Workflow optimization recommendations
 - Pages template customization suggestions
@@ -98,7 +105,8 @@ Org-Brain/
 
 ## 🔧 API Endpoints
 
-###Pages Management
+### Pages Management
+
 ```
 POST   /api/pages/enable                    # Enable Pages for repo
 POST   /api/pages/deploy-template          # Deploy Pages template
@@ -108,6 +116,7 @@ PATCH  /api/pages/config/:repo             # Update Pages config
 ```
 
 ### Autonomous Agents
+
 ```
 POST   /api/agents/initialize              # Initialize agent
 POST   /api/agents/:id/execute             # Execute action
@@ -117,6 +126,7 @@ GET    /api/agents/:id/executions          # Get execution history
 ```
 
 ### Workflow Management
+
 ```
 POST   /api/workflows/generate             # Generate workflow
 GET    /api/workflows/templates            # Get available templates
@@ -125,6 +135,7 @@ POST   /api/workflows/customize            # AI customization
 ```
 
 ### Repository Configuration
+
 ```
 GET    /api/repos/config                   # Get org config
 POST   /api/repos/config                   # Update org config
@@ -134,6 +145,7 @@ GET    /api/repos/features/:feature        # Get repos with feature
 ```
 
 ### Advanced Management
+
 ```
 POST   /api/management/audit               # Audit repository
 POST   /api/management/ai-customize        # Get AI suggestions
@@ -225,12 +237,14 @@ npm start
 ```
 
 The API server runs on `http://localhost:3000`
+
 - Dashboard: `http://localhost:3000/`
 - API Docs: `http://localhost:3000/api`
 
 ### 2. Enable Pages Auto-Setup
 
 Trigger the workflow:
+
 ```bash
 gh workflow run pages-setup.yml \
   --repo your-org/Org-Brain \
@@ -263,6 +277,7 @@ gh workflow run workflow-gen.yml \
 ## 🎯 Usage Scenarios
 
 ### Scenario 1: New Repository Setup
+
 1. Repository is created
 2. Pages auto-setup detects it
 3. Pages is enabled with documentation template
@@ -323,12 +338,15 @@ curl -X POST http://localhost:3000/api/management/audit \
 - **High Mode**: Full autonomy with built-in safety constraints
 
 ### Approval Gates
+
 - Major changes require approval
 - External repository modifications require approval
 - Merge actions always require verification
 
 ### Audit Trail
+
 Every agent action is logged with:
+
 - Timestamp
 - Action type
 - Parameters
@@ -342,24 +360,28 @@ Every agent action is logged with:
 The system is designed to work with Claude AI API for:
 
 1. **Pages Customization**
+
 ```python
 ai.suggest_pages_design(repo, language, purpose)
 → Design recommendations, content outline, template customization
 ```
 
-2. **Documentation Generation**
+1. **Documentation Generation**
+
 ```python
 ai.generate_documentation(repo, code_analysis)
 → README, API docs, guides, examples
 ```
 
-3. **Workflow Optimization**
+1. **Workflow Optimization**
+
 ```python
 ai.optimize_workflow(repo, current_workflow)
 → Performance improvements, additional checks, better parallelization
 ```
 
-4. **Repository Audit**
+1. **Repository Audit**
+
 ```python
 ai.audit_repository(repo)
 → Health score, improvement recommendations, best practices
@@ -389,23 +411,27 @@ ai.audit_repository(repo)
 Every major feature has both routes:
 
 ### Pages: Manual Setup
+
 ```bash
 curl -X POST http://localhost:3000/api/pages/enable \
   -d '{"repo": "my-repo", "template": "documentation"}'
 ```
 
 ### Pages: Autonomous Setup
+
 ```bash
 gh workflow run pages-setup.yml --repo your-org/Org-Brain
 ```
 
 ### Agents: Manual Initialization
+
 ```bash
 curl -X POST http://localhost:3000/api/agents/initialize \
   -d '{"repo": "my-repo", "type": "quality", "autonomy": "medium"}'
 ```
 
 ### Agents: Autonomous Initialization
+
 ```bash
 gh workflow run agents-manager.yml \
   -f action=initialize \
@@ -417,6 +443,7 @@ gh workflow run agents-manager.yml \
 ## 📈 Dashboard Features
 
 The web dashboard provides:
+
 - Real-time repository overview
 - Pages deployment status
 - Agent activity and statistics
@@ -430,11 +457,13 @@ The web dashboard provides:
 ## 🛠️ Development Setup
 
 ### Prerequisites
+
 - Node.js 16+
 - GitHub CLI
 - Git
 
 ### Installation
+
 ```bash
 git clone https://github.com/your-org/Org-Brain
 cd Org-Brain
@@ -445,11 +474,13 @@ npm start
 ```
 
 ### Running Tests
+
 ```bash
 npm test
 ```
 
 ### Building Dashboard
+
 ```bash
 npm run build:dashboard
 ```
@@ -459,6 +490,7 @@ npm run build:dashboard
 ## 📝 API Examples
 
 ### Enable Pages for a Repository
+
 ```bash
 curl -X POST http://localhost:3000/api/pages/enable \
   -H "Content-Type: application/json" \
@@ -471,6 +503,7 @@ curl -X POST http://localhost:3000/api/pages/enable \
 ```
 
 ### Initialize Autonomous Agent
+
 ```bash
 curl -X POST http://localhost:3000/api/agents/initialize \
   -H "Content-Type: application/json" \
@@ -486,6 +519,7 @@ curl -X POST http://localhost:3000/api/agents/initialize \
 ```
 
 ### Generate Code Quality Workflow
+
 ```bash
 curl -X POST http://localhost:3000/api/workflows/generate \
   -H "Content-Type: application/json" \
@@ -497,6 +531,7 @@ curl -X POST http://localhost:3000/api/workflows/generate \
 ```
 
 ### Get Organization Report
+
 ```bash
 curl -X GET http://localhost:3000/api/management/report
 ```
@@ -506,6 +541,7 @@ curl -X GET http://localhost:3000/api/management/report
 ## 🤝 Contributing
 
 Contributions welcome! Areas for expansion:
+
 - GitLab/Gitea integration
 - Additional agent types
 - More Pages templates
@@ -532,6 +568,7 @@ MIT License - See LICENSE file for details
 ## 🎉 Acknowledgments
 
 Built with:
+
 - GitHub CLI & API
 - Express.js
 - GitHub Actions

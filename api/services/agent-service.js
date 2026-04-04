@@ -31,7 +31,7 @@ class AgentService {
    */
   async initializeAgent(repo, agentType, config = {}) {
     const agentId = `${repo}-${agentType}`;
-    
+
     console.log(`🤖 Initializing ${agentType} agent for ${repo}`);
 
     const agent = {
@@ -366,3 +366,4 @@ class AgentService {
 }
 
 module.exports = AgentService;
+

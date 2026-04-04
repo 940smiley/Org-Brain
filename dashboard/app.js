@@ -73,7 +73,7 @@ function getAuthToken() {
     if (CONFIG.ghToken) {
         return CONFIG.ghToken;
     }
-    
+
     // Return null - API calls will handle auth failure gracefully
     return null;
 }
@@ -89,11 +89,11 @@ function getGitHubHeaders() {
         'Content-Type': 'application/json',
         'X-GitHub-Api-Version': '2022-11-28'
     };
-    
+
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }
-    
+
     return headers;
 }
 
@@ -108,7 +108,7 @@ function getGitHubHeaders() {
 function getReposArray(input) {
     if (!input) return [];
     if (Array.isArray(input)) return input.filter(r => r && r.length > 0);
-    
+
     return input
         .split(',')
         .map(r => r.trim())
@@ -475,7 +475,7 @@ async function runWorkflowOnRepo(owner, repoName, workflowId) {
  */
 async function runWorkflowOnMultipleRepos(owner, repoList, workflowId) {
     const repos = getReposArray(repoList);
-    
+
     if (repos.length === 0) {
         showNotification('No valid repositories specified', 'error');
         return [];
@@ -484,16 +484,16 @@ async function runWorkflowOnMultipleRepos(owner, repoList, workflowId) {
     showNotification(`Triggering ${workflowId} on ${repos.length} repositories...`, 'info');
 
     const results = [];
-    
+
     for (const repo of repos) {
         if (!isValidRepoName(repo)) {
             showNotification(`Skipping invalid repo name: ${repo}`, 'warning');
             continue;
         }
-        
+
         const result = await runWorkflowOnRepo(owner, repo, workflowId);
         results.push(result);
-        
+
         // Small delay to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 100));
     }
@@ -591,14 +591,14 @@ async function installWorkflowOnRepo(owner, repoName, workflowType) {
  */
 async function installWorkflowOnMultipleRepos(owner, repoList, workflowType) {
     const repos = getReposArray(repoList);
-    
+
     if (repos.length === 0) {
         showNotification('No valid repositories specified', 'error');
         return [];
     }
 
     const results = [];
-    
+
     for (const repo of repos) {
         if (!isValidRepoName(repo)) continue;
         const result = await installWorkflowOnRepo(owner, repo, workflowType);
@@ -1244,7 +1244,7 @@ function showInstallTokenModal() {
                     <li>The workflow will install the secret to ALL repositories</li>
                 </ul>
             </div>
-            
+
             <div class="token-input-group">
                 <label for="automation-token-input">Your Fine-Grained PAT (for reference):</label>
                 <input type="password" id="automation-token-input" placeholder="ghp_..." autocomplete="off">
@@ -1254,7 +1254,7 @@ function showInstallTokenModal() {
                 </p>
             </div>
         </div>
-        
+
         <div class="analysis-actions">
             <button onclick="installTokenToAllRepos()" class="btn btn-primary">
                 🚀 Continue to Workflow
@@ -1262,7 +1262,7 @@ function showInstallTokenModal() {
             <button onclick="closeModal()" class="btn btn-secondary">Cancel</button>
         </div>
     `;
-    
+
     showModal('Install Automation Token', content);
 }
 
@@ -1314,12 +1314,12 @@ async function installTokenToAllRepos() {
 function showNotification(message, type = 'info') {
     const id = Date.now();
     const notification = { id, message, type };
-    
+
     AppState.notifications.push(notification);
-    
+
     // Create notification element
     const container = document.getElementById('notifications-container') || createNotificationsContainer();
-    
+
     const el = document.createElement('div');
     el.id = `notification-${id}`;
     el.className = `notification notification-${type}`;
@@ -1327,9 +1327,9 @@ function showNotification(message, type = 'info') {
         <span class="notification-message">${escapeHtml(message)}</span>
         <button class="notification-close" onclick="dismissNotification(${id})">&times;</button>
     `;
-    
+
     container.appendChild(el);
-    
+
     // Auto-dismiss after 5 seconds for success/info
     if (type === 'success' || type === 'info') {
         setTimeout(() => dismissNotification(id), 5000);
@@ -1455,3 +1455,4 @@ window.addEventListener('unhandledrejection', (event) => {
 // =============================================================================
 
 document.addEventListener('DOMContentLoaded', initDashboard);
+

@@ -1,7 +1,7 @@
 # GitHub Actions Workflow Fixes - Complete Report
 
-**Date:** March 9, 2026  
-**Status:** ✅ All critical fixes applied  
+**Date:** March 9, 2026
+**Status:** ✅ All critical fixes applied
 **Remaining Action:** Manual cleanup of `workflow-gen.yml` (optional duplicate)
 
 ---
@@ -168,7 +168,7 @@ GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
 
 ## Part 6: Testing & Verification
 
-### To Verify Fixes Work:
+### To Verify Fixes Work
 
 ```bash
 # 1. Check API endpoint is correct for user account
@@ -241,7 +241,7 @@ rm .github/workflows/workflow-gen.yml
 
 ## Technical Details: API Endpoint Difference
 
-### Why `/users/` vs `/orgs/` matters:
+### Why `/users/` vs `/orgs/` matters
 
 | Account Type     | Endpoint                  | Description                                         |
 | ---------------- | ------------------------- | --------------------------------------------------- |

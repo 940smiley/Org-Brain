@@ -95,7 +95,7 @@ jobs:
 
           echo "$repos" | jq -c '.name, .language' | while read -r name lang; do
             lang=$(echo "$lang" | tr '[:upper:]' '[:lower:]')
-            
+
             case "$lang" in
               javascript|typescript)
                 js_repos=$(echo "$js_repos" | jq --arg n "$name" '. += [$n]')
@@ -213,3 +213,4 @@ jobs:
           echo "1. Review generated workflows" >> $GITHUB_STEP_SUMMARY
           echo "2. Test in target repositories" >> $GITHUB_STEP_SUMMARY
           echo "3. Enable in production when ready" >> $GITHUB_STEP_SUMMARY
+

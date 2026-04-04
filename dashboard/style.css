@@ -2,7 +2,7 @@
  * =============================================================================
  * ORG BRAIN DASHBOARD STYLES
  * =============================================================================
- * 
+ *
  * Modern, clean styling for the Org Brain dashboard.
  * Uses CSS custom properties for theming and consistent design.
  */
@@ -18,24 +18,24 @@
     --color-bg-tertiary: #21262d;
     --color-bg-card: #1c2128;
     --color-bg-hover: #262c36;
-    
+
     --color-text-primary: #f0f6fc;
     --color-text-secondary: #8b949e;
     --color-text-tertiary: #6e7681;
-    
+
     --color-border-primary: #30363d;
     --color-border-secondary: #21262d;
-    
+
     --color-accent: #58a6ff;
     --color-accent-hover: #79c0ff;
-    
+
     --color-success: #238636;
     --color-success-bg: rgba(35, 134, 54, 0.15);
     --color-warning: #9e6a03;
     --color-warning-bg: rgba(158, 106, 3, 0.15);
     --color-danger: #da3633;
     --color-danger-bg: rgba(218, 54, 51, 0.15);
-    
+
     /* Health colors */
     --color-healthy: #22c55e;
     --color-healthy-bg: rgba(34, 197, 94, 0.1);
@@ -45,7 +45,7 @@
     --color-unhealthy-bg: rgba(249, 115, 22, 0.1);
     --color-critical: #ef4444;
     --color-critical-bg: rgba(239, 68, 68, 0.1);
-    
+
     /* Spacing */
     --spacing-xs: 4px;
     --spacing-sm: 8px;
@@ -53,24 +53,24 @@
     --spacing-lg: 24px;
     --spacing-xl: 32px;
     --spacing-2xl: 48px;
-    
+
     /* Border radius */
     --radius-sm: 4px;
     --radius-md: 8px;
     --radius-lg: 12px;
     --radius-xl: 16px;
     --radius-full: 9999px;
-    
+
     /* Shadows */
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
     --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);
     --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.3);
-    
+
     /* Transitions */
     --transition-fast: 150ms ease;
     --transition-normal: 250ms ease;
     --transition-slow: 350ms ease;
-    
+
     /* Typography */
     --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
     --font-mono: 'SF Mono', 'Fira Code', 'Fira Mono', Consolas, monospace;
@@ -1102,43 +1102,43 @@ a:hover {
     .dashboard-header {
         padding: var(--spacing-md);
     }
-    
+
     .header-content {
         flex-direction: column;
         align-items: flex-start;
     }
-    
+
     .header-title h1 {
         font-size: var(--font-size-xl);
     }
-    
+
     .dashboard-main {
         padding: var(--spacing-md);
     }
-    
+
     .filters-container {
         flex-direction: column;
         align-items: stretch;
     }
-    
+
     .search-box {
         min-width: 100%;
     }
-    
+
     .filter-group,
     .sort-controls,
     .toggle-group {
         justify-content: space-between;
     }
-    
+
     .repo-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .stats-container {
         grid-template-columns: repeat(2, 1fr);
     }
-    
+
     .pagination-container {
         flex-direction: column;
         gap: var(--spacing-md);
@@ -1149,7 +1149,7 @@ a:hover {
     .stats-container {
         grid-template-columns: 1fr;
     }
-    
+
     .repo-stats {
         flex-wrap: wrap;
         gap: var(--spacing-md);

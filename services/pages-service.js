@@ -2,7 +2,7 @@
  * =============================================================================
  * GITHUB PAGES SERVICE
  * =============================================================================
- * 
+ *
  * Handles GitHub Pages configuration and customization for repositories.
  * Supports AI-powered page design and content generation.
  */
@@ -188,7 +188,7 @@ class PagesService {
      */
     generatePageIndex(owner, repo, config) {
         const { theme = 'github-dark', title = repo } = config;
-        
+
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -202,26 +202,26 @@ class PagesService {
             --color-secondary: #161b22;
             --color-accent: #58a6ff;
         }
-        
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background-color: var(--color-primary);
             color: #f0f6fc;
             line-height: 1.6;
         }
-        
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
             padding: 40px 20px;
         }
-        
+
         h1 {
             color: var(--color-accent);
             margin-bottom: 20px;
@@ -294,3 +294,4 @@ class PagesService {
 }
 
 module.exports = PagesService;
+

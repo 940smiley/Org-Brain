@@ -218,3 +218,4 @@ router.post('/sync-config', async (req, res) => {
 });
 
 module.exports = router;
+

@@ -89,7 +89,7 @@ jobs:
           GH_TOKEN: ${{ secrets.ORG_AUTOMATION_TOKEN }}
         run: |
           echo "🔍 Searching for Dependabot PRs in $ORG_NAME"
-          
+
           # Search for PRs by dependabot across all repos
           all_prs=$(gh search prs \
             --owner "$ORG_NAME" \
@@ -98,11 +98,11 @@ jobs:
             --limit 500 \
             --json number,title,repository,author,updatedAt,labels,body \
             --jq '.')
-          
+
           pr_count=$(echo "$all_prs" | jq 'length')
           echo "📦 Found $pr_count Dependabot PR(s)"
           echo "$all_prs" > /tmp/all_dependabot_prs.json
-          
+
           echo "pr_count=$pr_count" >> $GITHUB_OUTPUT
           echo "$all_prs" > /tmp/all_dependabot_prs.json
 
@@ -110,26 +110,26 @@ jobs:
         id: classify-prs
         run: |
           #!/bin/bash
-          
+
           all_prs=$(cat /tmp/all_dependabot_prs.json)
-          
+
           # Arrays to hold classified PRs
           security_prs="[]"
           patch_prs="[]"
           minor_prs="[]"
           major_prs="[]"
-          
+
           echo "$all_prs" | jq -c '.[]' | while read -r pr; do
             pr_number=$(echo "$pr" | jq -r '.number')
             repo=$(echo "$pr" | jq -r '.repository.nameWithOwner')
             title=$(echo "$pr" | jq -r '.title')
             body=$(echo "$pr" | jq -r '.body // ""')
             labels=$(echo "$pr" | jq -r '.labels[].name' | tr '\n' ',')
-            
+
             # Determine update type
             update_type="unknown"
             priority="normal"
-            
+
             # Check for security updates
             if echo "$labels" | grep -qi "security"; then
               update_type="security"
@@ -162,7 +162,7 @@ jobs:
               # Default to patch for unknown types
               update_type="patch"
             fi
-            
+
             # Create PR record
             pr_record=$(jq -n \
               --arg number "$pr_number" \
@@ -171,7 +171,7 @@ jobs:
               --arg type "$update_type" \
               --arg priority "$priority" \
               '{number: $number, repo: $repo, title: $title, type: $type, priority: $priority}')
-            
+
             # Append to appropriate array
             case "$update_type" in
               security)
@@ -188,13 +188,13 @@ jobs:
                 ;;
             esac
           done
-          
+
           # Convert JSONL to JSON arrays
           security_json="[]"
           patch_json="[]"
           minor_json="[]"
           major_json="[]"
-          
+
           if [ -f /tmp/security_prs.jsonl ]; then
             security_json=$(jq -s '.' /tmp/security_prs.jsonl)
           fi
@@ -207,21 +207,21 @@ jobs:
           if [ -f /tmp/major_prs.jsonl ]; then
             major_json=$(jq -s '.' /tmp/major_prs.jsonl)
           fi
-          
+
           # Count totals
           security_count=$(echo "$security_json" | jq 'length')
           patch_count=$(echo "$patch_json" | jq 'length')
           minor_count=$(echo "$minor_json" | jq 'length')
           major_count=$(echo "$major_json" | jq 'length')
           total_count=$((security_count + patch_count + minor_count + major_count))
-          
+
           echo "📊 Classification Results:"
           echo "   Security: $security_count"
           echo "   Patch: $patch_count"
           echo "   Minor: $minor_count"
           echo "   Major: $major_count"
           echo "   Total: $total_count"
-          
+
           # Output as JSON strings
           echo "security_prs=$(echo "$security_json" | jq -c '.')" >> $GITHUB_OUTPUT
           echo "patch_prs=$(echo "$patch_json" | jq -c '.')" >> $GITHUB_OUTPUT
@@ -258,12 +258,12 @@ jobs:
           REPO: ${{ matrix.pr.repo }}
         run: |
           echo "🚨 Processing SECURITY update: $REPO#$PR_NUMBER"
-          
+
           # Check PR status
           pr_state=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json state,mergeable,isDraft --jq '.')
           is_draft=$(echo "$pr_state" | jq -r '.isDraft')
           mergeable=$(echo "$pr_state" | jq -r '.mergeable')
-          
+
           if [ "$is_draft" = "true" ]; then
             echo "⏭️  Skipping: Draft PR"
             exit 0
@@ -284,10 +284,10 @@ jobs:
             fi
             exit 0
           fi
-          
+
           # Check CI status
           check_status=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json statusCheckRollup --jq '.statusCheckRollup[].state' | sort -u)
-          
+
           if echo "$check_status" | grep -q "FAILURE"; then
             echo "❌ CI checks failing, cannot auto-merge security update"
             # Add label for attention
@@ -296,7 +296,7 @@ jobs:
             fi
             exit 0
           fi
-          
+
           # Security updates: auto-merge if CI passes
           echo "✅ CI passing, enabling auto-merge for security update"
           if [ "$DRY_RUN" != "true" ]; then
@@ -346,26 +346,26 @@ jobs:
 
           # Check if PR is mergeable
           mergeable=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json mergeable --jq '.mergeable')
-          
+
           if [ "$mergeable" = "CONFLICTING" ]; then
             echo "⚠️  PR has merge conflicts"
             exit 0
           fi
-          
+
           # Check CI status
           check_status=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json statusCheckRollup --jq '.statusCheckRollup[].state' | sort -u)
-          
+
           if echo "$check_status" | grep -q "FAILURE"; then
             echo "❌ CI checks failing"
             exit 0
           fi
-          
+
           # Check if checks are still pending
           if echo "$check_status" | grep -q "PENDING"; then
             echo "⏳ CI checks still pending, skipping for now"
             exit 0
           fi
-          
+
           # Patch updates: auto-merge if CI passes
           echo "✅ CI passing, enabling auto-merge for patch update"
           if [ "$DRY_RUN" != "true" ]; then
@@ -415,20 +415,20 @@ jobs:
 
           # Check if PR is mergeable
           mergeable=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json mergeable --jq '.mergeable')
-          
+
           if [ "$mergeable" = "CONFLICTING" ]; then
             echo "⚠️  PR has merge conflicts"
             exit 0
           fi
-          
+
           # Check CI status
           check_status=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json statusCheckRollup --jq '.statusCheckRollup[].state' | sort -u)
-          
+
           if echo "$check_status" | grep -q "FAILURE"; then
             echo "❌ CI checks failing"
             exit 0
           fi
-          
+
           # Minor updates: auto-merge if CI passes
           echo "✅ CI passing, enabling auto-merge for minor update"
           if [ "$DRY_RUN" != "true" ]; then
@@ -467,15 +467,15 @@ jobs:
           REPO: ${{ matrix.pr.repo }}
         run: |
           echo "📦 Processing MAJOR update: $REPO#$PR_NUMBER"
-          
+
           # Major updates require manual review
           echo "🏷️  Adding 'major-update' and 'manual-review' labels"
-          
+
           if [ "$DRY_RUN" != "true" ]; then
             gh pr edit "$PR_NUMBER" --repo "$REPO" \
               --add-label "major-update" \
               --add-label "manual-review"
-            
+
             # Add comment explaining the label
             gh pr comment "$PR_NUMBER" --repo "$REPO" \
               --body "🤖 **Org Brain**: This is a major version update and has been labeled for manual review. Please review the changelog and test thoroughly before merging."
@@ -501,9 +501,9 @@ jobs:
           minor_mode=$([ "$PRIORITY_MODE" = "batch-all" ] && echo "✅ Auto-merge enabled" || echo "⏭️ Skipped (priority mode)")
           cat << EOF >> $GITHUB_STEP_SUMMARY
           # 📦 Dependabot Batch Manager Report
-          
+
           ## Execution Summary
-          
+
           | Metric | Value |
           |--------|-------|
           | Organization | $ORG_NAME |
@@ -513,19 +513,20 @@ jobs:
           | Patch Updates | $patch_count |
           | Minor Updates | $minor_count |
           | Major Updates | $major_count |
-          
+
           ## Processing Status
-          
+
           | Update Type | Action |
           |-------------|--------|
           | Security | ✅ Auto-merge enabled (if CI passes) |
           | Patch | ✅ Auto-merge enabled (if CI passes) |
           | Minor | $minor_mode |
           | Major | 🏷️ Labeled for manual review |
-          
+
           ## Notes
-          
+
           - PRs with merge conflicts are labeled 'merge-conflict'
           - PRs with failing CI are labeled 'ci-failing'
           - Major version updates require manual review
           EOF
+

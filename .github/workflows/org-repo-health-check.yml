@@ -90,25 +90,25 @@ jobs:
         run: |
           echo "🔍 Discovering repositories in: $ORG_NAME"
           sudo apt-get update -qq && sudo apt-get install -y jq > /dev/null 2>&1
-          
+
           # Fetch all repositories with details
           repos_json=$(gh api "/users/$ORG_NAME/repos?per_page=100&type=all" --paginate)
-          
+
           if [ "$INCLUDE_ARCHIVED" = "false" ]; then
             # Filter out archived repositories
             active_repos=$(echo "$repos_json" | jq -c '[.[] | select(.archived == false)]')
           else
             active_repos="$repos_json"
           fi
-          
+
           repo_count=$(echo "$active_repos" | jq 'length')
-          
+
           # Extract repo names as JSON array
           repo_names=$(echo "$active_repos" | jq -c '[.[] | .name]')
-          
+
           # Create detailed repo info
           repo_details=$(echo "$active_repos" | jq -c '[.[] | {name: .name, full_name: .full_name, archived: .archived, private: .private, pushed_at: .pushed_at, updated_at: .updated_at}]')
-          
+
           echo "📦 Found $repo_count repositories"
           echo "repo_list=$(echo "$repo_names" | jq -c '.')" >> $GITHUB_OUTPUT
           echo "repo_count=$repo_count" >> $GITHUB_OUTPUT
@@ -143,9 +143,9 @@ jobs:
           REPO_NAME: ${{ matrix.repo }}
         run: |
           #!/bin/bash
-          
+
           echo "📊 Collecting metrics for: $REPO_NAME"
-          
+
           # Initialize metrics
           workflow_failures=0
           workflow_runs=0
@@ -158,21 +158,21 @@ jobs:
           failing_tests=0
           last_push=""
           pr_merge_time_avg=0
-          
+
           # Get workflow runs (last 30 days)
           workflows=$(gh api "/repos/$ORG_NAME/$REPO_NAME/actions/workflows" --paginate 2>/dev/null | jq -r '.workflows[].id' || echo "")
-          
+
           if [ -n "$workflows" ]; then
             for workflow_id in $workflows; do
               runs=$(gh api "/repos/$ORG_NAME/$REPO_NAME/actions/workflows/$workflow_id/runs?per_page=100" --paginate 2>/dev/null || echo '{"workflow_runs":[]}')
               run_count=$(echo "$runs" | jq '.workflow_runs | length')
               workflow_runs=$((workflow_runs + run_count))
-              
+
               failures=$(echo "$runs" | jq '[.workflow_runs[] | select(.conclusion == "failure" or .conclusion == "cancelled")] | length')
               workflow_failures=$((workflow_failures + failures))
             done
           fi
-          
+
           # Get PR metrics
           prs=$(gh pr list --repo "$ORG_NAME/$REPO_NAME" --state all --limit 500 --json number,title,updatedAt,closedAt,mergedAt 2>/dev/null || echo "[]")
           total_prs=$(echo "$prs" | jq 'length')
@@ -180,7 +180,7 @@ jobs:
           # Calculate stale PRs (no activity in STALE_PR_DAYS)
           # Exclude PRs where last commit is from a bot (dependabot[bot], amazon-q[bot], github-actions[bot], llamabot, google-jules[bot])
           stale_threshold=$(date -d "-$STALE_PR_DAYS days" -Iseconds 2>/dev/null || date -v-${STALE_PR_DAYS}d -Iseconds 2>/dev/null || echo "2000-01-01T00:00:00Z")
-          
+
           # Get all PRs and filter out those with bot authors as last commit
           stale_prs=0
           echo "$prs" | jq -c '.[]' | while read -r pr; do
@@ -188,12 +188,12 @@ jobs:
             pr_updated=$(echo "$pr" | jq -r '.updatedAt')
             pr_closed=$(echo "$pr" | jq -r '.closedAt')
             pr_merged=$(echo "$pr" | jq -r '.mergedAt')
-            
+
             # Skip if closed or merged
             if [ "$pr_closed" != "null" ] || [ "$pr_merged" != "null" ]; then
               continue
             fi
-            
+
             # Check if updated before threshold
             if [[ "$pr_updated" < "$stale_threshold" ]]; then
               # Check last commit author
@@ -203,31 +203,31 @@ jobs:
               fi
             fi
           done
-          
+
           if [ -f /tmp/stale_prs_count.txt ]; then
             stale_prs=$(wc -l < /tmp/stale_prs_count.txt)
           fi
           rm -f /tmp/stale_prs_count.txt
-          
+
           # Get issue metrics
           issues=$(gh issue list --repo "$ORG_NAME/$REPO_NAME" --state all --limit 500 --json number,title,updatedAt,closedAt 2>/dev/null || echo "[]")
           total_issues=$(echo "$issues" | jq 'length')
-          
+
           # Calculate stale issues
           stale_issues=$(echo "$issues" | jq --arg threshold "$stale_threshold" '[.[] | select(.updatedAt < $threshold and .closedAt == null)] | length')
-          
+
           # Get security alerts (if available)
           security_alerts=0
           if gh api "/repos/$ORG_NAME/$REPO_NAME/dependabot/alerts?state=open" &>/dev/null; then
             security_alerts=$(gh api "/repos/$ORG_NAME/$REPO_NAME/dependabot/alerts?state=open" --paginate 2>/dev/null | jq 'length' || echo "0")
           fi
-          
+
           # Check for outdated dependencies (via Dependabot PRs)
           outdated_deps=$(gh pr list --repo "$ORG_NAME/$REPO_NAME" --state open --author "dependabot[bot]" --limit 100 --json number 2>/dev/null | jq 'length' || echo "0")
-          
+
           # Get last push date
           last_push=$(gh api "/repos/$ORG_NAME/$REPO_NAME" --jq '.pushed_at' 2>/dev/null || echo "")
-          
+
           # Check for failing test workflows
           failing_tests=0
           if [ -n "$workflows" ]; then
@@ -239,33 +239,33 @@ jobs:
               fi
             done
           fi
-          
+
           # Calculate health score (0-100)
           health_score=100
-          
+
           # Deduct for workflow failures
           if [ "$workflow_runs" -gt 0 ]; then
             failure_rate=$((workflow_failures * 100 / workflow_runs))
             health_score=$((health_score - failure_rate / 2))
           fi
-          
+
           # Deduct for stale PRs
           if [ "$total_prs" -gt 0 ]; then
             stale_rate=$((stale_prs * 100 / total_prs))
             health_score=$((health_score - stale_rate / 3))
           fi
-          
+
           # Deduct for security alerts
           health_score=$((health_score - security_alerts * 5))
-          
+
           # Deduct for failing tests
           health_score=$((health_score - failing_tests * 3))
-          
+
           # Ensure score is between 0 and 100
           if [ "$health_score" -lt 0 ]; then
             health_score=0
           fi
-          
+
           # Determine health status
           if [ "$health_score" -ge 80 ]; then
             health_status="healthy"
@@ -276,7 +276,7 @@ jobs:
           else
             health_status="critical"
           fi
-          
+
           # Output metrics as JSON
           metrics=$(jq -cn \
             --arg repo "$REPO_NAME" \
@@ -307,9 +307,9 @@ jobs:
               health_score: $health_score,
               health_status: $health_status
             }')
-          
+
           echo "metrics=$metrics" >> $GITHUB_OUTPUT
-          
+
           # Save to file for aggregation
           echo "$metrics" >> /tmp/repo_metrics.jsonl
 
@@ -325,12 +325,12 @@ jobs:
       - name: Aggregate Metrics and Generate Report
         run: |
           #!/bin/bash
-          
+
           echo "📋 Generating Organization Health Report"
-          
+
           # Aggregate all metrics
           total_repos=${{ needs.discover-repos.outputs.repo_count }}
-          
+
           # Calculate aggregate metrics
           total_workflow_failures=0
           total_workflow_runs=0
@@ -341,12 +341,12 @@ jobs:
           total_security_alerts=0
           total_outdated_deps=0
           total_failing_tests=0
-          
+
           healthy_repos=0
           warning_repos=0
           unhealthy_repos=0
           critical_repos=0
-          
+
           # Read metrics from all jobs
           if [ -f /tmp/repo_metrics.jsonl ]; then
             while IFS= read -r line; do
@@ -359,7 +359,7 @@ jobs:
               total_security_alerts=$((total_security_alerts + $(echo "$line" | jq '.security_alerts')))
               total_outdated_deps=$((total_outdated_deps + $(echo "$line" | jq '.outdated_deps')))
               total_failing_tests=$((total_failing_tests + $(echo "$line" | jq '.failing_tests')))
-              
+
               status=$(echo "$line" | jq -r '.health_status')
               case "$status" in
                 healthy) healthy_repos=$((healthy_repos + 1)) ;;
@@ -369,28 +369,28 @@ jobs:
               esac
             done < /tmp/repo_metrics.jsonl
           fi
-          
+
           # Calculate overall health score
           if [ "$total_repos" -gt 0 ]; then
             overall_score=$(( (healthy_repos * 100 + warning_repos * 70 + unhealthy_repos * 40 + critical_repos * 10) / total_repos ))
           else
             overall_score=0
           fi
-          
+
           # Generate markdown report
           report_date=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          
+
           cat << EOF > /tmp/health_report.md
           # 🏥 Organization Health Report
-          
-          **Organization:** $ORG_NAME  
-          **Generated:** $report_date  
+
+          **Organization:** $ORG_NAME
+          **Generated:** $report_date
           **Report Period:** Last 30 days
-          
+
           ---
-          
+
           ## 📊 Overall Health Summary
-          
+
           | Metric | Value |
           |--------|-------|
           | **Overall Health Score** | $overall_score / 100 |
@@ -399,90 +399,90 @@ jobs:
           | 🟡 Warning | $warning_repos |
           | 🟠 Unhealthy | $unhealthy_repos |
           | 🔴 Critical | $critical_repos |
-          
+
           ---
-          
+
           ## 📈 Key Metrics
-          
+
           ### CI/CD Health
           | Metric | Count |
           |--------|-------|
           | Total Workflow Runs | $total_workflow_runs |
           | Failed Workflows | $total_workflow_failures |
           | Failure Rate | $(echo "scale=2; $total_workflow_failures * 100 / ($total_workflow_runs + 1)" | bc 2>/dev/null || echo "N/A")% |
-          
+
           ### Pull Request Health
           | Metric | Count |
           |--------|-------|
           | Total Open PRs | $total_prs |
           | Stale PRs (>$STALE_PR_DAYS days) | $total_stale_prs |
           | Stale PR Rate | $(echo "scale=2; $total_stale_prs * 100 / ($total_prs + 1)" | bc 2>/dev/null || echo "N/A")% |
-          
+
           ### Issue Health
           | Metric | Count |
           |--------|-------|
           | Total Open Issues | $total_issues |
           | Stale Issues (>$STALE_ISSUE_DAYS days) | $total_stale_issues |
-          
+
           ### Security & Dependencies
           | Metric | Count |
           |--------|-------|
           | Open Security Alerts | $total_security_alerts |
           | Outdated Dependencies (Dependabot PRs) | $total_outdated_deps |
           | Failing Test Workflows | $total_failing_tests |
-          
+
           ---
-          
+
           ## 🚨 Action Items
-          
+
           EOF
-          
+
           # Add action items based on findings
           if [ "$total_security_alerts" -gt 0 ]; then
             echo "### 🔒 Security" >> /tmp/health_report.md
             echo "- **$total_security_alerts** open security alerts require attention" >> /tmp/health_report.md
             echo "" >> /tmp/health_report.md
           fi
-          
+
           if [ "$total_stale_prs" -gt 0 ]; then
             echo "### 📝 Stale Pull Requests" >> /tmp/health_report.md
             echo "- **$total_stale_prs** PRs have been inactive for more than $STALE_PR_DAYS days" >> /tmp/health_report.md
             echo "- Consider closing or reviewing stale PRs" >> /tmp/health_report.md
             echo "" >> /tmp/health_report.md
           fi
-          
+
           if [ "$total_failing_tests" -gt 0 ]; then
             echo "### 🧪 Failing Tests" >> /tmp/health_report.md
             echo "- **$total_failing_tests** test workflow failures detected" >> /tmp/health_report.md
             echo "- Review failing test workflows and fix broken tests" >> /tmp/health_report.md
             echo "" >> /tmp/health_report.md
           fi
-          
+
           if [ "$total_outdated_deps" -gt 0 ]; then
             echo "### 📦 Dependency Updates" >> /tmp/health_report.md
             echo "- **$total_outdated_deps** dependency update PRs pending review" >> /tmp/health_report.md
             echo "- Consider enabling auto-merge for patch/minor updates" >> /tmp/health_report.md
             echo "" >> /tmp/health_report.md
           fi
-          
+
           # Add footer
           cat << EOF >> /tmp/health_report.md
           ---
-          
+
           ## 📝 Notes
-          
+
           - This report is automatically generated weekly by the Org Brain system
           - Health scores are calculated based on multiple factors including CI success rate, PR activity, and security status
           - For detailed per-repository metrics, enable \`detailed_mode\` in workflow dispatch
-          
+
           ---
-          
+
           *Generated by 🧠 Org Brain - Repository Health Check*
           EOF
-          
+
           # Output report
           cat /tmp/health_report.md
-          
+
           # Save report for upload
           cp /tmp/health_report.md /tmp/health_report_final.md
 
@@ -496,3 +496,4 @@ jobs:
           name: health-report
           path: /tmp/health_report_final.md
           retention-days: 30
+

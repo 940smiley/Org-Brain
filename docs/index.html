@@ -5,23 +5,23 @@
     =============================================================================
     ORG BRAIN - GitHub Pages Entry Point
     =============================================================================
-    
+
     This is the main entry point for the Org Brain GitHub Pages site.
     It redirects to the dashboard and provides documentation links.
-    
+
     =============================================================================
     -->
-    
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Org Brain - Centralized GitHub Organization Management">
     <meta name="theme-color" content="#0d1117">
-    
+
     <title>Org Brain - Organization Management</title>
-    
+
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
-    
+
     <style>
         :root {
             --color-bg-primary: #0d1117;
@@ -33,13 +33,13 @@
             --color-success: #238636;
             --color-border: #30363d;
         }
-        
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
             background-color: var(--color-bg-primary);
@@ -47,13 +47,13 @@
             line-height: 1.6;
             min-height: 100vh;
         }
-        
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
             padding: 40px 20px;
         }
-        
+
         .hero {
             text-align: center;
             padding: 60px 20px;
@@ -61,25 +61,25 @@
             border-radius: 16px;
             margin-bottom: 40px;
         }
-        
+
         .hero-logo {
             font-size: 80px;
             margin-bottom: 20px;
         }
-        
+
         .hero h1 {
             font-size: 48px;
             font-weight: 700;
             margin-bottom: 10px;
         }
-        
+
         .hero p {
             font-size: 20px;
             color: var(--color-text-secondary);
             max-width: 600px;
             margin: 0 auto;
         }
-        
+
         .cta-buttons {
             display: flex;
             gap: 16px;
@@ -87,7 +87,7 @@
             margin-top: 30px;
             flex-wrap: wrap;
         }
-        
+
         .btn {
             display: inline-flex;
             align-items: center;
@@ -99,36 +99,36 @@
             text-decoration: none;
             transition: all 0.2s ease;
         }
-        
+
         .btn-primary {
             background-color: var(--color-success);
             color: white;
         }
-        
+
         .btn-primary:hover {
             background-color: #2ea043;
             transform: translateY(-2px);
         }
-        
+
         .btn-secondary {
             background-color: var(--color-bg-tertiary);
             color: var(--color-text-primary);
             border: 1px solid var(--color-border);
         }
-        
+
         .btn-secondary:hover {
             background-color: var(--color-bg-secondary);
             border-color: var(--color-accent);
             transform: translateY(-2px);
         }
-        
+
         .features {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 24px;
             margin-bottom: 40px;
         }
-        
+
         .feature-card {
             background-color: var(--color-bg-card, var(--color-bg-secondary));
             border: 1px solid var(--color-border);
@@ -136,46 +136,46 @@
             padding: 24px;
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
-        
+
         .feature-card:hover {
             transform: translateY(-4px);
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
         }
-        
+
         .feature-icon {
             font-size: 36px;
             margin-bottom: 16px;
         }
-        
+
         .feature-card h3 {
             font-size: 20px;
             margin-bottom: 8px;
         }
-        
+
         .feature-card p {
             color: var(--color-text-secondary);
             font-size: 14px;
         }
-        
+
         .workflows {
             background-color: var(--color-bg-secondary);
             border-radius: 12px;
             padding: 32px;
             margin-bottom: 40px;
         }
-        
+
         .workflows h2 {
             font-size: 28px;
             margin-bottom: 24px;
             text-align: center;
         }
-        
+
         .workflow-list {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             gap: 16px;
         }
-        
+
         .workflow-item {
             display: flex;
             align-items: flex-start;
@@ -186,17 +186,17 @@
             transition: all 0.2s ease;
             cursor: pointer;
         }
-        
+
         .workflow-item.actionable:hover {
             background-color: var(--color-bg-secondary);
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
-        
+
         .workflow-item.actionable:active {
             transform: translateY(0);
         }
-        
+
         .workflow-status {
             margin-left: auto;
             padding: 4px 8px;
@@ -207,45 +207,45 @@
             color: white;
             align-self: center;
         }
-        
+
         .workflow-status.running {
             background-color: var(--color-accent);
         }
-        
+
         .workflow-status.error {
             background-color: var(--color-critical, #ef4444);
         }
-        
+
         .workflow-icon {
             font-size: 24px;
             flex-shrink: 0;
         }
-        
+
         .workflow-info h4 {
             font-size: 16px;
             margin-bottom: 4px;
         }
-        
+
         .workflow-info p {
             font-size: 13px;
             color: var(--color-text-secondary);
         }
-        
+
         .docs-section {
             margin-bottom: 40px;
         }
-        
+
         .docs-section h2 {
             font-size: 28px;
             margin-bottom: 16px;
         }
-        
+
         .docs-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 16px;
         }
-        
+
         .doc-link {
             display: block;
             padding: 20px;
@@ -256,47 +256,47 @@
             color: var(--color-text-primary);
             transition: all 0.2s ease;
         }
-        
+
         .doc-link:hover {
             border-color: var(--color-accent);
             background-color: var(--color-bg-tertiary);
         }
-        
+
         .doc-link h4 {
             font-size: 16px;
             margin-bottom: 8px;
         }
-        
+
         .doc-link p {
             font-size: 13px;
             color: var(--color-text-secondary);
         }
-        
+
         footer {
             text-align: center;
             padding: 40px 20px;
             border-top: 1px solid var(--color-border);
             color: var(--color-text-secondary);
         }
-        
+
         footer a {
             color: var(--color-accent);
             text-decoration: none;
         }
-        
+
         footer a:hover {
             text-decoration: underline;
         }
-        
+
         @media (max-width: 768px) {
             .hero h1 {
                 font-size: 32px;
             }
-            
+
             .hero p {
                 font-size: 16px;
             }
-            
+
             .cta-buttons {
                 flex-direction: column;
                 align-items: center;
@@ -323,7 +323,7 @@
                 </a>
             </div>
         </section>
-        
+
         <!-- Features Section -->
         <section class="features">
             <div class="feature-card">
@@ -357,7 +357,7 @@
                 <p>Built entirely with GitHub CLI and Actions - no external API keys required.</p>
             </div>
         </section>
-        
+
         <!-- Workflows Section -->
         <section class="workflows">
             <h2>🔄 Automation Workflows</h2>
@@ -412,7 +412,7 @@
                 </div>
             </div>
         </section>
-        
+
         <!-- Documentation Section -->
         <section class="docs-section">
             <h2>📚 Documentation</h2>
@@ -435,7 +435,7 @@
                 </a>
             </div>
         </section>
-        
+
         <!-- Setup Section -->
         <section class="workflows">
             <h2>🛠️ Quick Setup</h2>
@@ -452,7 +452,7 @@
             </div>
         </section>
     </div>
-    
+
     <!-- JavaScript for Workflow Triggers -->
     <script>
         // Configuration
@@ -461,34 +461,34 @@
             repo: 'Org-Brain',
             token: null // Will be set if available
         };
-        
+
         // Workflow trigger function
         async function triggerWorkflow(workflowName) {
             const statusElement = document.getElementById(`status-${workflowName}`);
             if (!statusElement) return;
-            
+
             // Update status to running
             statusElement.textContent = 'Running...';
             statusElement.className = 'workflow-status running';
-            
+
             try {
                 // For now, show a message since we can't actually trigger workflows from client-side
                 // In a real implementation, this would call a backend API
                 await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
-                
+
                 statusElement.textContent = 'Completed';
                 statusElement.className = 'workflow-status';
-                
+
                 // Reset after 3 seconds
                 setTimeout(() => {
                     statusElement.textContent = 'Ready';
                 }, 3000);
-                
+
             } catch (error) {
                 console.error('Workflow trigger failed:', error);
                 statusElement.textContent = 'Failed';
                 statusElement.className = 'workflow-status error';
-                
+
                 // Reset after 5 seconds
                 setTimeout(() => {
                     statusElement.textContent = 'Ready';
@@ -496,12 +496,12 @@
                 }, 5000);
             }
         }
-        
+
         // Show message for workflow triggers
         function showWorkflowMessage(workflowName) {
             alert(`Workflow "${workflowName}" triggered successfully!\n\nNote: This is a demo. Actual workflow triggering requires server-side implementation with proper GitHub API authentication.`);
         }
-        
+
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', function() {
             // Add click handlers to workflow items

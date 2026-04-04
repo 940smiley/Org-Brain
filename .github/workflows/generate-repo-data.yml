@@ -71,7 +71,7 @@ jobs:
     outputs:
       repo_count: ${{ steps.generate.outputs.repo_count }}
       data_changed: ${{ steps.check-changes.outputs.data_changed }}
-    
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
@@ -90,34 +90,34 @@ jobs:
         run: |
           #!/bin/bash
           set -e
-          
+
           # Install prerequisites
           sudo apt-get update -qq
           sudo apt-get install -y jq > /dev/null 2>&1
-          
+
           echo "🔍 Fetching repositories for: $ORG_NAME"
           echo "📋 Checking authentication status..."
           gh auth status
-          
+
           # Determine if ORG_NAME is a user or organization
           # Try organization endpoint first, fall back to user endpoint
           repos_json=$(gh api "/users/$ORG_NAME/repos?per_page=100&type=all&sort=updated" --paginate 2>/dev/null || echo "[]")
-          
+
           # Filter archived if needed
           if [ "$INCLUDE_ARCHIVED" = "false" ]; then
             repos_json=$(echo "$repos_json" | jq '[.[] | select(.archived == false)]')
           fi
-          
+
           repo_count=$(echo "$repos_json" | jq 'length')
           echo "📦 Found $repo_count repositories"
           echo "repo_count=$repo_count" >> $GITHUB_OUTPUT
-          
+
           # Generate enhanced repository data
           echo "📝 Generating enhanced repository data..."
-          
+
           # Create array for processed repos
           processed_repos="[]"
-          
+
           # Process each repository
           echo "$repos_json" | jq -c '.[]' | while read -r repo; do
             name=$(echo "$repo" | jq -r '.name')
@@ -139,7 +139,7 @@ jobs:
             has_wiki=$(echo "$repo" | jq -r '.has_wiki')
             has_pages=$(echo "$repo" | jq -r '.has_pages')
             license=$(echo "$repo" | jq -r '.license.spdx_id // "None"')
-            
+
             # Get workflow status if enabled
             workflow_status="unknown"
             workflow_count=0
@@ -147,7 +147,7 @@ jobs:
               # Get workflows
               workflows=$(gh api "/repos/$ORG_NAME/$name/actions/workflows" 2>/dev/null || echo '{"workflows":[]}')
               workflow_count=$(echo "$workflows" | jq '.workflows | length')
-              
+
               # Check recent workflow runs
               if [ "$workflow_count" -gt 0 ]; then
                 recent_runs=$(gh api "/repos/$ORG_NAME/$name/actions/runs?per_page=10" 2>/dev/null || echo '{"workflow_runs":[]}')
@@ -155,36 +155,36 @@ jobs:
                 workflow_status=$latest_status
               fi
             fi
-            
+
             # Calculate health score (simple algorithm)
             health_score=100
-            
+
             # Deduct for no recent activity (30 days)
             pushed_timestamp=$(date -d "$pushed_at" +%s 2>/dev/null || echo "0")
             current_timestamp=$(date +%s)
             days_since_push=$(( (current_timestamp - pushed_timestamp) / 86400 ))
-            
+
             if [ "$days_since_push" -gt 90 ]; then
               health_score=$((health_score - 30))
             elif [ "$days_since_push" -gt 30 ]; then
               health_score=$((health_score - 15))
             fi
-            
+
             # Deduct for open issues
             if [ "$open_issues_count" -gt 50 ]; then
               health_score=$((health_score - 10))
             fi
-            
+
             # Deduct for failing workflows
             if [ "$workflow_status" = "failure" ]; then
               health_score=$((health_score - 20))
             fi
-            
+
             # Ensure score is between 0 and 100
             if [ "$health_score" -lt 0 ]; then
               health_score=0
             fi
-            
+
             # Determine health status
             if [ "$health_score" -ge 80 ]; then
               health_status="healthy"
@@ -195,7 +195,7 @@ jobs:
             else
               health_status="critical"
             fi
-            
+
             # Create repo object
             repo_obj=$(jq -n \
               --arg name "$name" \
@@ -248,10 +248,10 @@ jobs:
                 health_status: $health_status,
                 days_since_push: $days_since_push
               }')
-            
+
             echo "$repo_obj" >> /tmp/repos_raw.jsonl
           done
-          
+
           # Convert JSONL to JSON array
           if [ -f /tmp/repos_raw.jsonl ]; then
             final_data=$(jq -s '.' /tmp/repos_raw.jsonl)
@@ -261,7 +261,7 @@ jobs:
             echo "[]" > "$DATA_FILE"
             echo "⚠️  No repositories found, created empty data file"
           fi
-          
+
           # Cleanup
           rm -f /tmp/repos_raw.jsonl
 
@@ -281,14 +281,14 @@ jobs:
         run: |
           git config user.email "$COMMIT_EMAIL"
           git config user.name "$COMMIT_NAME"
-          
+
           git add "$DATA_FILE"
           git commit -m "chore: update repository data
 
           Auto-generated by Org Brain
           Repositories: ${{ steps.generate.outputs.repo_count }}
           Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
-          
+
           git push
           echo "✅ Committed and pushed updated repository data"
 
@@ -296,9 +296,9 @@ jobs:
         run: |
           cat << EOF >> $GITHUB_STEP_SUMMARY
           # 📊 Repository Data Generation Report
-          
+
           ## Summary
-          
+
           | Metric | Value |
           |--------|-------|
           | Organization | $ORG_NAME |
@@ -306,14 +306,15 @@ jobs:
           | Data File | $DATA_FILE |
           | Changed | ${{ steps.check-changes.outputs.data_changed }} |
           | Generated | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |
-          
+
           ## Data Fields
-          
+
           Each repository includes:
           - Basic info (name, description, URL)
           - Statistics (stars, forks, issues)
           - Metadata (language, license, topics)
           - Workflow status
           - Health score
-          
+
           EOF
+

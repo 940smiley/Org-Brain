@@ -2,7 +2,7 @@
  * =============================================================================
  * AI SERVICE
  * =============================================================================
- * 
+ *
  * Provides AI-powered suggestions and customizations for repository features.
  * Integrates with AI models for intelligent recommendations.
  */
@@ -26,7 +26,7 @@ class AIService {
     async suggestFeatures(repoData, repoType, context = '') {
         // This would integrate with an AI API
         // For now, returning logical suggestions based on repo type
-        
+
         const suggestions = {
             library: [
                 {
@@ -275,7 +275,7 @@ class AIService {
      */
     selectAutomationLevel(repoData, preferences) {
         const { automationLevel = 'moderate' } = preferences;
-        
+
         if (automationLevel) {
             return automationLevel;
         }
@@ -332,3 +332,4 @@ class AIService {
 }
 
 module.exports = AIService;
+

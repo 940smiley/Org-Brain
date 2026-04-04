@@ -2,7 +2,7 @@
  * =============================================================================
  * ORG BRAIN - REPO MANAGEMENT API SERVER
  * =============================================================================
- * 
+ *
  * Central API for autonomous repository management across all user-owned repos.
  * Provides endpoints for:
  *   - Repository discovery and management
@@ -156,9 +156,9 @@ app.listen(PORT, () => {
     console.log(`📚 API docs: http://localhost:${PORT}/api`);
 });
 
-module.exports = app; 
-            success: false, 
-            error: error.message 
+module.exports = app;
+            success: false,
+            error: error.message
         });
     }
 });
@@ -172,9 +172,9 @@ app.get('/api/repos/:owner/:repo', async (req, res) => {
         const details = await repoService.getRepoDetails(owner, repo);
         res.json({ success: true, data: details });
     } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
@@ -188,9 +188,9 @@ app.get('/api/repos/:owner/:repo/config', async (req, res) => {
         const config = await repoService.getRepoConfig(owner, repo);
         res.json({ success: true, data: config });
     } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
@@ -204,9 +204,9 @@ app.post('/api/repos/:owner/:repo/config', async (req, res) => {
         const config = await repoService.updateRepoConfig(owner, repo, req.body);
         res.json({ success: true, data: config });
     } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
@@ -224,9 +224,9 @@ app.get('/api/repos/:owner/:repo/workflows', async (req, res) => {
         const workflows = await workflowService.listWorkflows(owner, repo);
         res.json({ success: true, data: workflows });
     } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
@@ -242,7 +242,7 @@ app.post('/api/repos/:owner/:repo/workflows/generate', async (req, res) => {
     try {
         const { owner, repo } = req.params;
         const { type, config, autonomous } = req.body;
-        
+
         const workflow = await workflowService.generateWorkflow(
             owner,
             repo,
@@ -250,16 +250,16 @@ app.post('/api/repos/:owner/:repo/workflows/generate', async (req, res) => {
             config,
             autonomous
         );
-        
-        res.json({ 
-            success: true, 
+
+        res.json({
+            success: true,
             data: workflow,
             message: `Workflow ${type} deployed to ${owner}/${repo}`
         });
     } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
@@ -273,9 +273,9 @@ app.post('/api/repos/:owner/:repo/workflows/:workflowId/trigger', async (req, re
         const result = await workflowService.triggerWorkflow(owner, repo, workflowId);
         res.json({ success: true, data: result });
     } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
@@ -293,9 +293,9 @@ app.get('/api/repos/:owner/:repo/pages', async (req, res) => {
         const pages = await pagesService.getPagesConfig(owner, repo);
         res.json({ success: true, data: pages });
     } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
@@ -315,9 +315,9 @@ app.post('/api/repos/:owner/:repo/pages/enable', async (req, res) => {
         const config = await pagesService.enablePages(owner, repo, req.body);
         res.json({ success: true, data: config });
     } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
@@ -335,9 +335,9 @@ app.post('/api/repos/:owner/:repo/pages/customize', async (req, res) => {
         const customization = await pagesService.customizePages(owner, repo, req.body);
         res.json({ success: true, data: customization });
     } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
@@ -363,9 +363,9 @@ app.post('/api/repos/:owner/:repo/automation/enable', async (req, res) => {
         );
         res.json({ success: true, data: result });
     } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
@@ -379,9 +379,9 @@ app.get('/api/repos/:owner/:repo/automation/status', async (req, res) => {
         const status = await automationService.getAutomationStatus(owner, repo);
         res.json({ success: true, data: status });
     } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
@@ -400,18 +400,18 @@ app.post('/api/repos/:owner/:repo/ai/suggest-features', async (req, res) => {
     try {
         const { owner, repo } = req.params;
         const repoData = await repoService.getRepoDetails(owner, repo);
-        
+
         const suggestions = await aiService.suggestFeatures(
             repoData,
             req.body.repoType,
             req.body.context
         );
-        
+
         res.json({ success: true, data: suggestions });
     } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
@@ -426,18 +426,18 @@ app.post('/api/repos/:owner/:repo/ai/customize-pages', async (req, res) => {
     try {
         const { owner, repo } = req.params;
         const repoData = await repoService.getRepoDetails(owner, repo);
-        
+
         const suggestions = await aiService.customizePagesWithAI(
             repoData,
             req.body.pageType,
             req.body.style
         );
-        
+
         res.json({ success: true, data: suggestions });
     } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
@@ -449,17 +449,17 @@ app.post('/api/repos/:owner/:repo/ai/generate-config', async (req, res) => {
     try {
         const { owner, repo } = req.params;
         const repoData = await repoService.getRepoDetails(owner, repo);
-        
+
         const config = await aiService.generateOptimalConfig(
             repoData,
             req.body.preferences || {}
         );
-        
+
         res.json({ success: true, data: config });
     } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
@@ -472,8 +472,8 @@ app.use((err, req, res, next) => {
     console.error('API Error:', err);
     res.status(500).json({
         success: false,
-        error: process.env.NODE_ENV === 'production' 
-            ? 'Internal server error' 
+        error: process.env.NODE_ENV === 'production'
+            ? 'Internal server error'
             : err.message
     });
 });
@@ -489,3 +489,4 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
+

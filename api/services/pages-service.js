@@ -87,7 +87,7 @@ class PagesService {
         // Get the default branch's latest commit
         const repoInfo = await this.api.get(`/repos/${this.org}/${repo}`);
         const defaultBranch = repoInfo.data.default_branch;
-        
+
         const branchInfo = await this.api.get(
           `/repos/${this.org}/${repo}/branches/${defaultBranch}`
         );
@@ -243,3 +243,4 @@ class PagesService {
 }
 
 module.exports = PagesService;
+

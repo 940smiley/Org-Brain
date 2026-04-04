@@ -175,3 +175,4 @@ jobs:
           if [ -n "${{ steps.install.outputs.error }}" ]; then
             echo "| Error | ${{ steps.install.outputs.error }} |" >> $GITHUB_STEP_SUMMARY
           fi
+

@@ -77,7 +77,7 @@ jobs:
       - name: VALIDATE - Check token received
         run: |
           echo "=== VALIDATION: Checking token ==="
-          
+
           # HARD FAIL if token is missing
           if [ -z "$ORG_AUTOMATION_TOKEN" ]; then
             echo "ERROR: No token received!"
@@ -85,7 +85,7 @@ jobs:
             echo "Check that the workflow input 'pat' is provided."
             exit 1
           fi
-          
+
           echo "Token validation passed"
           echo "Token length: ${#ORG_AUTOMATION_TOKEN} characters"
 
@@ -94,16 +94,16 @@ jobs:
           GH_TOKEN: ${{ inputs.pat }}
         run: |
           echo "=== PREFLIGHT: Checking GitHub API access ==="
-          
+
           user_login=$(gh api user --jq '.login' 2>&1)
           api_exit_code=$?
-          
+
           if [ $api_exit_code -ne 0 ]; then
             echo "ERROR: GitHub API access failed!"
             echo "Response: $user_login"
             exit 1
           fi
-          
+
           echo "API access confirmed"
           echo "Authenticated as: $user_login"
 
@@ -113,28 +113,28 @@ jobs:
           GH_TOKEN: ${{ inputs.pat }}
         run: |
           echo "=== ENUMERATION: Fetching repositories ==="
-          
+
           repos_json=$(gh api "/users/$OWNER/repos?per_page=100&type=all" --paginate 2>/dev/null || echo "[]")
-          
+
           if [ "$repos_json" = "[]" ] || [ -z "$repos_json" ]; then
             echo "WARNING: No repositories found"
             echo "repos=[]" >> $GITHUB_OUTPUT
             echo "count=0" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
+
           # Filter out archived repos
           active_repos=$(echo "$repos_json" | jq -c '[.[] | select(.archived == false) | {name: .name, private: .private}]')
           repo_count=$(echo "$active_repos" | jq 'length')
-          
+
           echo "Found $repo_count active repositories"
-          
+
           # Save repo names to file for script
           echo "$active_repos" | jq -r '.[].name' > $OUTPUT_DIR/repos.txt
-          
+
           echo "Repository list:"
           cat $OUTPUT_DIR/repos.txt
-          
+
           echo "repos=$active_repos" >> $GITHUB_OUTPUT
           echo "count=$repo_count" >> $GITHUB_OUTPUT
           echo "$active_repos" > $OUTPUT_DIR/repos.json
@@ -150,40 +150,40 @@ jobs:
           echo "Secret Name: $SECRET_NAME"
           echo "Skip Existing: $SKIP_EXISTING"
           echo ""
-          
+
           repos_file="$OUTPUT_DIR/repos.json"
           if [ ! -f "$repos_file" ]; then
             echo "ERROR: Repository list file not found: $repos_file"
             exit 1
           fi
-          
+
           success_count=0
           failure_count=0
           skip_count=0
           total_count=$(jq 'length' "$repos_file")
-          
+
           echo "Total repositories to process: $total_count"
           echo ""
-          
+
           > $OUTPUT_DIR/results.jsonl
-          
+
           # Process each repository
           jq -c '.[]' "$repos_file" | while read -r repo_info; do
             repo_name=$(echo "$repo_info" | jq -r '.name')
             is_private=$(echo "$repo_info" | jq -r '.private')
-            
+
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo "Processing: $repo_name (private: $is_private)"
-            
+
             # Create log file for this repo
             log_file="$OUTPUT_DIR/${repo_name}.log"
             echo "Log: $repo_name" > "$log_file"
             echo "Started: $(date -u)" >> "$log_file"
-            
+
             # Fetch repo's public key for encryption
             echo "  Fetching public key..." | tee -a "$log_file"
             key_response=$(gh api "/repos/$OWNER/$repo_name/actions/secrets/public-key" 2>&1) || true
-            
+
             if ! echo "$key_response" | jq -e '.key_id' > /dev/null 2>&1; then
               echo "  Failed to fetch public key: $key_response" | tee -a "$log_file"
               failure_count=$((failure_count + 1))
@@ -191,17 +191,17 @@ jobs:
               echo "Error: $key_response" >> "$log_file"
               continue
             fi
-            
+
             key_id=$(echo "$key_response" | jq -r '.key_id')
             public_key=$(echo "$key_response" | jq -r '.key')
-            
+
             echo "  Key ID: $key_id" | tee -a "$log_file"
-            
+
             # Check if secret already exists
             if [ "$SKIP_EXISTING" = "true" ]; then
               echo "  Checking if secret exists..." | tee -a "$log_file"
               check_response=$(gh api "/repos/$OWNER/$repo_name/actions/secrets/$SECRET_NAME" 2>&1 || true)
-              
+
               if echo "$check_response" | jq -e '.name' > /dev/null 2>&1; then
                 echo "  Secret already exists, skipping" | tee -a "$log_file"
                 skip_count=$((skip_count + 1))
@@ -210,11 +210,11 @@ jobs:
                 continue
               fi
             fi
-            
+
             # Encrypt the token using Python/PyNaCl (libsodium)
             echo "  Encrypting token..." | tee -a "$log_file"
             encrypted_value=$(PUBLIC_KEY="$public_key" python3 -c "import base64, os; from nacl import public; token=os.environ.get('ORG_AUTOMATION_TOKEN', ''); assert token, 'No token in environment'; public_key_obj=public.PublicKey(base64.b64decode(os.environ['PUBLIC_KEY'])); sealed_box=public.SealedBox(public_key_obj); print(base64.b64encode(sealed_box.encrypt(token.encode('utf-8'))).decode('utf-8'))")
-            
+
             if [ -z "$encrypted_value" ] || echo "$encrypted_value" | grep -q "ERROR"; then
               echo "  Encryption failed!" | tee -a "$log_file"
               failure_count=$((failure_count + 1))
@@ -222,9 +222,9 @@ jobs:
               echo "Encryption failed" >> "$log_file"
               continue
             fi
-            
+
             echo "  Token encrypted successfully" | tee -a "$log_file"
-            
+
             # Upload encrypted secret
             echo "  Uploading secret..." | tee -a "$log_file"
             if upload_response=$(gh api -X PUT "/repos/$OWNER/$repo_name/actions/secrets/$SECRET_NAME" -f encrypted_value="$encrypted_value" -f key_id="$key_id" 2>&1); then
@@ -238,29 +238,29 @@ jobs:
               echo "{\"repo\":\"$repo_name\",\"status\":\"failed\",\"error\":\"$upload_response\"}" >> $OUTPUT_DIR/results.jsonl
               echo "Error: $upload_response" >> "$log_file"
             fi
-            
+
             echo "Completed: $(date -u)" >> "$log_file"
           done
-          
+
           # Count results from file
           if [ -f $OUTPUT_DIR/results.jsonl ]; then
             success_count=$(grep -c '"status":"success"' $OUTPUT_DIR/results.jsonl || true)
             failure_count=$(grep -c '"status":"failed"' $OUTPUT_DIR/results.jsonl || true)
             skip_count=$(grep -c '"status":"skipped"' $OUTPUT_DIR/results.jsonl || true)
           fi
-          
+
           echo ""
           echo "Installation Summary"
           echo "  Total: $total_count"
           echo "  Success: $success_count"
           echo "  Failed: $failure_count"
           echo "  Skipped: $skip_count"
-          
+
           echo "success_count=$success_count" >> $GITHUB_OUTPUT
           echo "failure_count=$failure_count" >> $GITHUB_OUTPUT
           echo "skip_count=$skip_count" >> $GITHUB_OUTPUT
           echo "total_count=$total_count" >> $GITHUB_OUTPUT
-          
+
           # Fail if any failures
           if [ "$failure_count" -gt 0 ]; then
             echo ""
@@ -304,7 +304,7 @@ jobs:
         run: |
           git config user.email "org-brain-bot@github.com"
           git config user.name "Org Brain Bot"
-          
+
           if git diff --quiet $OUTPUT_DIR/ 2>/dev/null; then
             echo "No changes to commit"
           else
@@ -341,3 +341,4 @@ jobs:
           - **Detailed Report:** \`data/token-install/summary.md\`
           - **Artifact:** Download from workflow run
           EOF
+
