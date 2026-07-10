@@ -1,7 +1,7 @@
 # Workflow Failures Report
 
-**Generated:** 2026-07-09 08:00:32 UTC
-**Scan Mode:** 
+**Generated:** 2026-07-10 07:43:52 UTC
+**Scan Mode:** all
 **Repositories Scanned:** 0
 
 ---
